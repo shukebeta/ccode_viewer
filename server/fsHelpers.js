@@ -143,7 +143,7 @@ function resolveProjectPath(projectName, pathImpl = path) {
 
         // Resolve paths for Windows compatibility
         // Resolve paths for Windows compatibility
-        const resolvedTestPath = pathImpl.resolve(drivePrefix + testPart)
+        const resolvedTestPath = pathImpl.resolve(drivePrefix + testPath)
         const resolvedTestPathWithUnderscore = pathImpl.resolve(drivePrefix + testPathWithUnderscore)
         const resolvedTestPathWithDot = pathImpl.resolve(drivePrefix + testPathWithDot)
 
