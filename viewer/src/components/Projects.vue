@@ -2,7 +2,7 @@
   <div>
     <h2>Projects</h2>
     <ul class="project-list">
-      <li v-for="p in projects" :key="p.name">
+      <li v-for="p in projects" :key="p.id">
         <div :class="['project-card', { active: selected && selected.name === p.name }]" @click="$emit('select-project', p)">
           <div class="project-title">{{ displayName(p) }}</div>
           <div class="project-path">{{ displayPath(p) }}</div>
