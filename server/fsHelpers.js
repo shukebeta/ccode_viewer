@@ -75,9 +75,9 @@ function resolveProjectPath(projectName, pathImpl = path) {
     const possiblePathAsDot = pathImpl.join(currentPath, possiblePart.replace(/-/g, '.'))
 
     // Resolve paths to handle Windows drive letters and normalize
-    const resolvedPathAsSlash = pathImpl.resolve(possiblePathAsSlash)
-    const resolvedPathAsUnderscore = pathImpl.resolve(possiblePathAsUnderscore)
-    const resolvedPathAsDot = pathImpl.resolve(possiblePathAsDot)
+    const resolvedPathAsSlash = pathImpl.resolve(drivePrefix + possiblePathAsSlash)
+    const resolvedPathAsUnderscore = pathImpl.resolve(drivePrefix + possiblePathAsUnderscore)
+    const resolvedPathAsDot = pathImpl.resolve(drivePrefix + possiblePathAsDot)
 
     if (fsExistsSync(resolvedPathAsSlash)) {
       // If directory exists, separate with path separator
@@ -108,9 +108,10 @@ function resolveProjectPath(projectName, pathImpl = path) {
           const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
 
           // Resolve paths for Windows compatibility
-          const resolvedTestPath = pathImpl.resolve(testPath)
-          const resolvedTestPathWithUnderscore = pathImpl.resolve(testPathWithUnderscore)
-          const resolvedTestPathWithDot = pathImpl.resolve(testPathWithDot)
+          // Resolve paths for Windows compatibility
+          const resolvedTestPath = pathImpl.resolve(drivePrefix + testPath)
+          const resolvedTestPathWithUnderscore = pathImpl.resolve(drivePrefix + testPathWithUnderscore)
+          const resolvedTestPathWithDot = pathImpl.resolve(drivePrefix + testPathWithDot)
 
           if (fsExistsSync(resolvedTestPath)) {
             currentPath = testPath
@@ -141,9 +142,10 @@ function resolveProjectPath(projectName, pathImpl = path) {
         const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
 
         // Resolve paths for Windows compatibility
-        const resolvedTestPath = pathImpl.resolve(testPath)
-        const resolvedTestPathWithUnderscore = pathImpl.resolve(testPathWithUnderscore)
-        const resolvedTestPathWithDot = pathImpl.resolve(testPathWithDot)
+        // Resolve paths for Windows compatibility
+        const resolvedTestPath = pathImpl.resolve(drivePrefix + testPart)
+        const resolvedTestPathWithUnderscore = pathImpl.resolve(drivePrefix + testPathWithUnderscore)
+        const resolvedTestPathWithDot = pathImpl.resolve(drivePrefix + testPathWithDot)
 
         if (fsExistsSync(resolvedTestPath)) {
           currentPath = testPath
