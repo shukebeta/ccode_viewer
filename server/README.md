@@ -1,38 +1,50 @@
-Claude Code Viewer - Local Webapp
+# Claude Code Viewer - Server
 
-Quick start
+Express API server for accessing Claude Code CLI session data.
 
-1. cd webapp
-2. npm install
-3. npm start
+## Quick Start
 
-Then open http://localhost:6173 in your browser.
+```bash
+cd server
+npm install
+npm start
+```
 
-What this provides
+Server will run on http://localhost:6173
 
-- Simple Express server exposing APIs to list projects, sessions, and read session `.jsonl` files from `~/.claude/projects`.
-- Static SPA to browse projects, sessions, and view message contents.
+## What This Provides
 
-Progressive enhancement plan
+- REST API for listing projects and sessions
+- SSE (Server-Sent Events) for real-time session updates
+- File watching for live session updates
+- Session mapping and parsing from JSONL format
 
-1) Minimal local webapp (this commit)
-  - Read-only access to sessions via local HTTP server.
-  - No authentication (assumes local machine access only).
+## API Endpoints
 
-2) UX improvements
-  - Better UI, pagination, search, date filtering, and nicer message renderer with code blocks.
-  - Support for opening session in new tab (link to raw `.jsonl`).
+- `GET /api/projects` - List all projects
+- `GET /api/sessions?project=<path>` - List sessions for a project
+- `GET /api/session?file=<path>` - Read session JSONL file
+- `GET /api/session-mapping?file=<path>` - Get mapped session data
+- `GET /api/events?file=<path>` - SSE endpoint for live updates
 
-3) Optional features
-  - Add indexing for faster search across sessions.
-  - Add export / share (zip) endpoints.
-  - Add optional basic auth or OS-level checks for multi-user machines.
+## Development
 
-4) Progressive migration
-  - Replace parts of the Electron app with the webapp UI served from local file or embedded server.
-  - Keep Electron for desktop specific integrations if needed.
+```bash
+npm run dev    # Uses nodemon for auto-reload
+```
 
-Security notes
+## Testing
 
-- This server reads files under the user's home directory and should not be exposed publicly.
-- Recommend binding to localhost and using firewall rules if necessary.
+```bash
+npm test
+```
+
+## Data Source
+
+Reads session files from `~/.claude/projects/*/sessions/*.jsonl`
+
+## Security Notes
+
+- This server reads files under the user's home directory
+- Only bind to localhost (default: 127.0.0.1:6173)
+- Do NOT expose this server publicly
