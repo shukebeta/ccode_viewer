@@ -8,116 +8,183 @@ const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
 const { sep: PATH_SEP } = path
 function resolveProjectPath(projectName, pathImpl = path) {
   const pathCache = resolveProjectPath._cache || (resolveProjectPath._cache = new Map())
-  if (pathCache.has(projectName)) return pathCache.get(projectName)
+  
+  // Check cache
+  if (pathCache.has(projectName)) {
+    return pathCache.get(projectName)
+  }
 
+  // Empty string or only '-' case
   if (!projectName || projectName === '-') {
     const result = pathImpl.resolve(pathImpl.sep)
     pathCache.set(projectName, result)
     return result
   }
 
+  // Check if this is a Windows project folder (starts with drive letter)
   const isWindowsProjectFolder = /^[A-Za-z]--/.test(projectName)
 
+  // Handle paths that are already in correct format (not encoded)
   if (!projectName.startsWith('-') && !isWindowsProjectFolder) {
     pathCache.set(projectName, projectName)
     return projectName
   }
 
+  // Handle Windows project folders by converting them to Unix-like format for processing
   let workingProjectName = projectName
   let drivePrefix = ''
+
   if (isWindowsProjectFolder) {
-    const m = projectName.match(/^([A-Za-z])--(.+)$/)
-    if (m) {
-      drivePrefix = `${m[1].toUpperCase()}:`
-      workingProjectName = `-${m[2]}`
+    const driveMatch = projectName.match(/^([A-Za-z])--(.+)$/)
+    if (driveMatch) {
+      const [, driveLetter, pathPart] = driveMatch
+      drivePrefix = `${driveLetter.toUpperCase()}:`
+      workingProjectName = `-${pathPart}` // Convert to Unix-like format for processing
     }
   }
 
+  // Remove first '-' as it represents root
   let remaining = workingProjectName.substring(1)
+
+  // Handle empty directory names (starting with --)
+  while (remaining.startsWith('-')) {
+    remaining = remaining.substring(1)
+  }
+
+  // Path constructed so far - start with root path using pathImpl
   let currentPath = pathImpl.sep
 
   while (remaining.length > 0) {
+    // Find next '-' position
     let nextDashIndex = remaining.indexOf('-')
+
     if (nextDashIndex === -1) {
+      // If no more '-', treat the rest as one part
       currentPath = pathImpl.join(currentPath, remaining)
       break
     }
 
+    // Check path when '-' is replaced with path separator
     const possiblePart = remaining.substring(0, nextDashIndex)
-
-    // Lookahead: try combining multiple dash-separated segments and prefer
-    // underscore/dot variants if they exist (so "happy-notes" -> "happy_notes"
-    // is preferred over splitting into "happy/notes" when the underscore name exists).
-    let foundCombined = false
-    let searchIndex = nextDashIndex + 1
-    while (searchIndex < remaining.length) {
-      const nextSearchIndex = remaining.indexOf('-', searchIndex)
-      let testPart
-      if (nextSearchIndex === -1) testPart = remaining
-      else testPart = remaining.substring(0, nextSearchIndex)
-
-      const testPath = pathImpl.join(currentPath, testPart)
-      const testPartWithUnderscore = testPart.replace(/-/g, '_')
-      const testPathWithUnderscore = pathImpl.join(currentPath, testPartWithUnderscore)
-      const testPartWithDot = testPart.replace(/-/g, '.')
-      const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
-
-      const resolvedTestPathWithUnderscore = pathImpl.resolve(testPathWithUnderscore)
-      const resolvedTestPathWithDot = pathImpl.resolve(testPathWithDot)
-      const resolvedTestPath = pathImpl.resolve(testPath)
-
-      // Prefer underscore variant, then dot, then literal
-      if (fsExistsSync(resolvedTestPathWithUnderscore)) {
-        currentPath = testPathWithUnderscore
-        remaining = nextSearchIndex === -1 ? '' : remaining.substring(nextSearchIndex + 1)
-        foundCombined = true
-        break
-      } else if (fsExistsSync(resolvedTestPathWithDot)) {
-        currentPath = testPathWithDot
-        remaining = nextSearchIndex === -1 ? '' : remaining.substring(nextSearchIndex + 1)
-        foundCombined = true
-        break
-      } else if (fsExistsSync(resolvedTestPath)) {
-        currentPath = testPath
-        remaining = nextSearchIndex === -1 ? '' : remaining.substring(nextSearchIndex + 1)
-        foundCombined = true
-        break
-      }
-
-      if (nextSearchIndex === -1) break
-      searchIndex = nextSearchIndex + 1
-    }
-
-    if (foundCombined) continue
-
-    // If no combined match, fall back to checking single segment variants
     const possiblePathAsSlash = pathImpl.join(currentPath, possiblePart)
+
+    // Also check path when '-' is replaced with '_'
     const possiblePathAsUnderscore = pathImpl.join(currentPath, possiblePart.replace(/-/g, '_'))
+
+    // Also check path when '-' is replaced with '.'
     const possiblePathAsDot = pathImpl.join(currentPath, possiblePart.replace(/-/g, '.'))
 
+    // Resolve paths to handle Windows drive letters and normalize
     const resolvedPathAsSlash = pathImpl.resolve(possiblePathAsSlash)
     const resolvedPathAsUnderscore = pathImpl.resolve(possiblePathAsUnderscore)
     const resolvedPathAsDot = pathImpl.resolve(possiblePathAsDot)
 
-    if (fsExistsSync(resolvedPathAsUnderscore)) {
+    if (fsExistsSync(resolvedPathAsSlash)) {
+      // If directory exists, separate with path separator
+      currentPath = possiblePathAsSlash
+      remaining = remaining.substring(nextDashIndex + 1)
+    } else if (fsExistsSync(resolvedPathAsUnderscore)) {
+      // If exists when replaced with '_', process with '_'
       currentPath = possiblePathAsUnderscore
       remaining = remaining.substring(nextDashIndex + 1)
     } else if (fsExistsSync(resolvedPathAsDot)) {
+      // If exists when replaced with '.', process with '.'
       currentPath = possiblePathAsDot
       remaining = remaining.substring(nextDashIndex + 1)
-    } else if (fsExistsSync(resolvedPathAsSlash)) {
-      currentPath = possiblePathAsSlash
-      remaining = remaining.substring(nextDashIndex + 1)
     } else {
-      // fallback: treat this segment as directory and continue
-      currentPath = pathImpl.join(currentPath, possiblePart)
-      remaining = remaining.substring(nextDashIndex + 1)
+      // If directory doesn't exist, try combining multiple segments
+      let foundValid = false
+      let searchIndex = nextDashIndex + 1
+
+      while (searchIndex < remaining.length) {
+        const nextSearchIndex = remaining.indexOf('-', searchIndex)
+        if (nextSearchIndex === -1) {
+          // Search to the end
+          const testPart = remaining
+          const testPath = pathImpl.join(currentPath, testPart)
+          const testPartWithUnderscore = testPart.replace(/-/g, '_')
+          const testPathWithUnderscore = pathImpl.join(currentPath, testPartWithUnderscore)
+          const testPartWithDot = testPart.replace(/-/g, '.')
+          const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
+
+          // Resolve paths for Windows compatibility
+          const resolvedTestPath = pathImpl.resolve(testPath)
+          const resolvedTestPathWithUnderscore = pathImpl.resolve(testPathWithUnderscore)
+          const resolvedTestPathWithDot = pathImpl.resolve(testPathWithDot)
+
+          if (fsExistsSync(resolvedTestPath)) {
+            currentPath = testPath
+            remaining = ''
+            foundValid = true
+          } else if (fsExistsSync(resolvedTestPathWithUnderscore)) {
+            currentPath = testPathWithUnderscore
+            remaining = ''
+            foundValid = true
+          } else if (fsExistsSync(resolvedTestPathWithDot)) {
+            currentPath = testPathWithDot
+            remaining = ''
+            foundValid = true
+          }
+          break
+        }
+
+        // Test including up to next '-'
+        const testPart = remaining.substring(0, nextSearchIndex)
+        const testPath = pathImpl.join(currentPath, testPart)
+
+        // Also test path with '_'
+        const testPartWithUnderscore = testPart.replace(/-/g, '_')
+        const testPathWithUnderscore = pathImpl.join(currentPath, testPartWithUnderscore)
+
+        // Also test path with '.'
+        const testPartWithDot = testPart.replace(/-/g, '.')
+        const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
+
+        // Resolve paths for Windows compatibility
+        const resolvedTestPath = pathImpl.resolve(testPath)
+        const resolvedTestPathWithUnderscore = pathImpl.resolve(testPathWithUnderscore)
+        const resolvedTestPathWithDot = pathImpl.resolve(testPathWithDot)
+
+        if (fsExistsSync(resolvedTestPath)) {
+          currentPath = testPath
+          remaining = remaining.substring(nextSearchIndex + 1)
+          foundValid = true
+          break
+        } else if (fsExistsSync(resolvedTestPathWithUnderscore)) {
+          currentPath = testPathWithUnderscore
+          remaining = remaining.substring(nextSearchIndex + 1)
+          foundValid = true
+          break
+        } else if (fsExistsSync(resolvedTestPathWithDot)) {
+          currentPath = testPathWithDot
+          remaining = remaining.substring(nextSearchIndex + 1)
+          foundValid = true
+          break
+        }
+
+        searchIndex = nextSearchIndex + 1
+      }
+
+      if (!foundValid) {
+        // If directory doesn't exist, fall back to treating first part as directory
+        currentPath = pathImpl.join(currentPath, possiblePart)
+        remaining = remaining.substring(nextDashIndex + 1)
+      }
     }
   }
 
+  // Use the currentPath as the result since it's already built correctly
   let result = currentPath
-  if (drivePrefix) result = drivePrefix + result
+
+  // For Windows paths, add drive prefix
+  if (drivePrefix) {
+    // Add drive prefix (path already uses correct separator)
+    result = drivePrefix + result
+  }
+
+  // Save to cache
   pathCache.set(projectName, result)
+
   return result
 }
 
