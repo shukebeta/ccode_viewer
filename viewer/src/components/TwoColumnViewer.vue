@@ -356,6 +356,9 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 
 /* assistant card copy button */
 .assistant-card { padding: 34px 8px 8px 8px; position: relative }
+/* Distinguish user and assistant messages with different backgrounds */
+.assistant-item[data-display="user"] .assistant-card { background: rgba(59, 130, 246, 0.04); border-left: 3px solid rgba(59, 130, 246, 0.3); }
+.assistant-item[data-display="assistant"] .assistant-card { background: rgba(255, 255, 255, 0.02); }
 .copy-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(255,255,255,0.02); color: inherit; padding:6px; border-radius:6px; cursor:pointer }
 .copy-btn svg { display:block }
 .copy-btn:hover { background: rgba(255,255,255,0.04) }
