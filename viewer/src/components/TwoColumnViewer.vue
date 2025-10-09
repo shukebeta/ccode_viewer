@@ -46,12 +46,27 @@ import MessageRenderer from './MessageRenderer.vue'
 
 export default {
   components: { MessageRenderer },
-  props: ['file'],
+  props: ['file', 'highlightUserId'],
   data() {
     return { users: [], mapping: {}, allMessages: [], loading: false, selectedUser: null, es: null }
   },
   async mounted() { await this.load() },
-  watch: { file: { immediate: true, handler() { this.load() } } },
+  watch: {
+    file: { immediate: true, handler() { this.load() } },
+    highlightUserId: {
+      handler(userId) {
+        if (userId && this.users.length > 0) {
+          // Find and select the user
+          const user = this.users.find(u => u.id === userId)
+          if (user) {
+            this.$nextTick(() => {
+              this.selectUser(user)
+            })
+          }
+        }
+      }
+    }
+  },
   methods: {
     async load() {
       if (!this.file) return
@@ -120,6 +135,16 @@ export default {
         } catch (e) { console.error('EventSource error', e) }
       } catch (e) { console.error(e) }
       this.loading = false
+
+      // Auto-highlight if highlightUserId is set
+      if (this.highlightUserId) {
+        const user = this.users.find(u => u.id === this.highlightUserId)
+        if (user) {
+          this.$nextTick(() => {
+            this.selectUser(user)
+          })
+        }
+      }
     },
     cleanupEventSource() {
       if (this.es) {

@@ -17,11 +17,27 @@
                 {{ sessionFile ? sessionName : `Sessions for ${project.name}` }}
               </template>
             </summary>
-            <Sessions :project="project" @select-session="onSelectSession" />
+            <SearchBox
+              :resultCount="searchResults.length"
+              :loading="searchLoading"
+              @search="onSearch"
+            />
+            <SearchResults
+              v-if="searchQuery"
+              :results="searchResults"
+              :query="searchQuery"
+              @select-result="onSelectSearchResult"
+              @clear-search="clearSearch"
+            />
+            <Sessions
+              v-else
+              :project="project"
+              @select-session="onSelectSession"
+            />
           </details>
           <div></div>
         </div>
-        <TwoColumnViewer v-if="sessionFile" :file="sessionFile" />
+        <TwoColumnViewer v-if="sessionFile" :file="sessionFile" :highlightUserId="highlightUserId" />
         <div v-else class="placeholder">Select a session to view</div>
       </main>
     </div>
@@ -31,12 +47,23 @@
 <script>
 import Projects from './components/Projects.vue'
 import Sessions from './components/Sessions.vue'
+import SearchBox from './components/SearchBox.vue'
+import SearchResults from './components/SearchResults.vue'
 import TwoColumnViewer from './components/TwoColumnViewer.vue'
 
 export default {
-  components: { Projects, Sessions, TwoColumnViewer },
+  components: { Projects, Sessions, SearchBox, SearchResults, TwoColumnViewer },
   data() {
-    return { project: null, sessionFile: null, selectedSession: null }
+    return {
+      project: null,
+      sessionFile: null,
+      selectedSession: null,
+      // Search state
+      searchQuery: '',
+      searchResults: [],
+      searchLoading: false,
+      highlightUserId: null
+    }
   },
   computed: {
     sessionName() {
@@ -50,15 +77,57 @@ export default {
     onSelectProject(p) {
       this.project = p
       this.sessionFile = null
+      this.clearSearch()
     },
     onSelectSession(file, sessionObj) {
       this.sessionFile = file
       this.selectedSession = sessionObj || null
+      this.highlightUserId = null
       // auto-close the sessions dropdown so it no longer occupies space
       try {
         const d = this.$refs.sessionsDetails
         if (d && typeof d.open !== 'undefined') d.open = false
       } catch (e) { /* ignore */ }
+    },
+    async onSearch(query) {
+      this.searchQuery = query
+
+      if (!query || query.length < 3) {
+        this.searchResults = []
+        return
+      }
+
+      if (!this.project) return
+
+      this.searchLoading = true
+      try {
+        const projectId = encodeURIComponent(this.project.id || this.project.name)
+        const res = await fetch(`/api/projects/${projectId}/search?q=${encodeURIComponent(query)}`)
+        if (!res.ok) throw new Error('Search failed')
+        this.searchResults = await res.json()
+      } catch (e) {
+        console.error('Search error:', e)
+        this.searchResults = []
+      } finally {
+        this.searchLoading = false
+      }
+    },
+    onSelectSearchResult({ sessionFile, userId }) {
+      // Load the session and highlight the user message
+      this.highlightUserId = userId
+      this.sessionFile = sessionFile
+      this.selectedSession = null
+
+      // Close sessions dropdown
+      try {
+        const d = this.$refs.sessionsDetails
+        if (d && typeof d.open !== 'undefined') d.open = false
+      } catch (e) { /* ignore */ }
+    },
+    clearSearch() {
+      this.searchQuery = ''
+      this.searchResults = []
+      this.highlightUserId = null
     }
     , formatTime(ts) {
       if (!ts) return ''

@@ -456,4 +456,71 @@ async function mapSessionMessages(filePath) {
   return { users: usersOut, mapping: mapOut }
 }
 
+async function searchInProject(projectId, keyword) {
+  try {
+    // Get all sessions for the project (limit to first 100)
+    const sessions = await getSessions(projectId)
+    const limitedSessions = sessions.slice(0, 100)
+
+    const results = []
+    const keywordLower = keyword.toLowerCase()
+
+    // Search through each session
+    for (const session of limitedSessions) {
+      try {
+        const { users, mapping } = await mapSessionMessages(session.filePath)
+
+        // Search through user messages
+        for (const user of users) {
+          const preview = user.preview || ''
+          if (preview.toLowerCase().includes(keywordLower)) {
+            // Get assistant replies for this user message
+            const assistantReplies = mapping[user.id] || []
+
+            results.push({
+              sessionId: session.id,
+              sessionFile: session.filePath,
+              sessionStart: session.startTime,
+              userMessage: {
+                id: user.id,
+                preview: preview.substring(0, 300), // Limit preview length
+                timestamp: user.timestamp
+              },
+              assistantReplies: assistantReplies.map(a => ({
+                id: a.id,
+                preview: typeof a.content === 'string'
+                  ? a.content.substring(0, 200)
+                  : JSON.stringify(a.content).substring(0, 200),
+                timestamp: a.timestamp
+              })),
+              timestamp: user.timestamp || session.startTime
+            })
+
+            // Limit total results to 200
+            if (results.length >= 200) break
+          }
+        }
+
+        if (results.length >= 200) break
+      } catch (err) {
+        console.error(`Error searching session ${session.id}:`, err)
+        // Continue with next session
+      }
+    }
+
+    // Sort by timestamp, newest first
+    results.sort((a, b) => {
+      const aTime = new Date(a.timestamp || 0)
+      const bTime = new Date(b.timestamp || 0)
+      return bTime - aTime
+    })
+
+    return results
+  } catch (err) {
+    console.error('searchInProject error:', err)
+    throw err
+  }
+}
+
 module.exports.mapSessionMessages = mapSessionMessages
+module.exports.searchInProject = searchInProject

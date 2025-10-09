@@ -37,6 +37,22 @@ app.get('/api/session-mapping', async (req, res) => {
   res.json(mapping)
 })
 
+// Cross-session search endpoint
+app.get('/api/projects/:projectId/search', async (req, res) => {
+  const { projectId } = req.params
+  const { q } = req.query
+  if (!q || q.length < 3) {
+    return res.status(400).json({ error: 'Query must be at least 3 characters' })
+  }
+  try {
+    const results = await fsHelpers.searchInProject(projectId, q)
+    res.json(results)
+  } catch (err) {
+    console.error('Search error:', err)
+    res.status(500).json({ error: 'Search failed' })
+  }
+})
+
 // Server-Sent Events endpoint for session file updates
 app.get('/api/events', async (req, res) => {
   const file = req.query.file
