@@ -497,13 +497,6 @@ const systemNote = computed(() => {
 .exit-plan-mode li { margin: 0.2rem 0 }
 .exit-plan-mode pre { margin: 0.4rem 0; background: rgba(0, 0, 0, 0.05); padding: 8px; border-radius: 4px }
 .exit-plan-mode code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace; font-size: 0.9em }
-.thinking-block { background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: 6px; padding: 12px; margin: 8px 0 }
-.thinking-block h1, .thinking-block h2, .thinking-block h3 { color: rgba(168, 85, 247, 0.9); margin: 0.5rem 0 }
-.thinking-block p { margin: 0.3rem 0; line-height: 1.5 }
-.thinking-block ul, .thinking-block ol { margin: 0.3rem 0; padding-left: 1.5rem }
-.thinking-block li { margin: 0.2rem 0 }
-.thinking-block pre { margin: 0.4rem 0; background: rgba(0, 0, 0, 0.05); padding: 8px; border-radius: 4px }
-.thinking-block code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace; font-size: 0.9em }
 </style>
 
 <style>
@@ -518,4 +511,7 @@ const systemNote = computed(() => {
 .thinking-block li { margin: 0.2rem 0 !important; }
 .thinking-block pre { margin: 0.4rem 0 !important; background: rgba(0, 0, 0, 0.05) !important; padding: 8px !important; border-radius: 4px !important; }
 .thinking-block code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace !important; font-size: 0.9em !important; }
+/* thinking-block styles (must be unscoped for v-html content) */
+.thinking-block { background: rgba(168, 85, 247, 0.1) !important; border: 1px solid rgba(168, 85, 247, 0.2) !important; border-radius: 6px !important; padding: 12px !important; margin: 8px 0 !important; }
+.thinking-block h1, .thinking-block h2, .thinking-block h3 { color: rgba(168, 85, 247, 0.9) !important; margin: 0.5rem 0 !important; }
 </style>
