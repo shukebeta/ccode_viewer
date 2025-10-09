@@ -1,0 +1,45 @@
+/* Light theme for claude-viteapp */
+:root{
+  --bg: #f7fafc;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --success: #059669;
+  --inprogress: #d97706;
+  --danger: #dc2626;
+  --code-bg: #f3f4f6;
+}
+html,body,#app{height:100%;}
+body{
+  margin:0;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+  background:linear-gradient(180deg,var(--bg),#eef2f7);
+  color:#0f1724;
+  -webkit-font-smoothing:antialiased;
+}
+.app-shell{height:100vh; display:flex; flex-direction:column}
+.header{padding:12px 20px; border-bottom:1px solid rgba(15,23,36,0.06); display:flex; align-items:center; gap:12px}
+.header h1{margin:0; font-size:16px}
+.main{display:flex; gap:16px; padding:16px; height:calc(100vh - 64px); box-sizing:border-box}
+.left-col{width:340px; min-width:240px; max-width:420px; overflow:auto}
+.right-col{flex:1; overflow:auto}
+.card{background:var(--card); border-radius:10px; padding:12px; box-shadow: 0 1px 0 rgba(2,6,23,0.04); border:1px solid rgba(2,6,23,0.04)}
+.list-button{display:block; width:100%; text-align:left; padding:10px; border-radius:8px; border:none; background:transparent; color:inherit}
+.list-button:hover{background:rgba(2,6,23,0.02)}
+.user-item{margin-bottom:8px}
+.assistant-item{margin-bottom:12px}
+.message-renderer{line-height:1.45}
+.code-block{background:var(--code-bg); padding:10px; border-radius:8px; overflow:auto; border:1px solid rgba(2,6,23,0.04); font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size:13px}
+.todo-list ul{padding-left:18px}
+.todo-list li{margin:6px 0}
+.todo-list li > input[type=checkbox]{transform:scale(1.05); margin-right:8px}
+.system-note{opacity:0.8; font-size:12px}
+.meta{color:var(--muted); font-size:12px}
+/* trip the message preview container */
+.user-preview { display:block; width:100%; text-align:left; padding:8px; border-radius:6px }
+/* Allow full user message height: remove preview max-height and overflow clipping */
+.user-preview .message-renderer { max-height: none; overflow: visible }
+/* responsive */
+@media (max-width:900px){
+  .left-col{display:none}
+}

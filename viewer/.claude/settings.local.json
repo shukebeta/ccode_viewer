@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/David.Wei/Projects/claude-code-viewer/**)",
+      "Bash(npm ls:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
