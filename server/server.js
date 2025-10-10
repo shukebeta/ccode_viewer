@@ -31,6 +31,18 @@ app.get('/api/session', async (req, res) => {
 })
 
 app.get('/api/session-mapping', async (req, res) => {
+
+app.delete('/api/session', async (req, res) => {
+  const file = req.query.file
+  if (!file) return res.status(400).json({ error: 'file query required' })
+  try {
+    await fsHelpers.deleteSession(file)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Delete session error:', err)
+    res.status(500).json({ error: err.message || 'Failed to delete session' })
+  }
+})
   const file = req.query.file
   if (!file) return res.status(400).json({ error: 'file query required' })
   const mapping = await fsHelpers.mapSessionMessages(file)
