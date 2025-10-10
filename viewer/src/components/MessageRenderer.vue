@@ -456,9 +456,9 @@ onMounted(() => {
     replaceImages()
   })
   obs.observe(document.body, { childList: true, subtree: true })
-})
-})
-  // delegated handler for copying code blocks (buttons with .copy-code-btn)
+  })
+  obs.observe(document.body, { childList: true, subtree: true })
+  
   document.addEventListener('click', (e) => {
     const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
     if (!btn) return
