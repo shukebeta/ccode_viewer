@@ -394,26 +394,6 @@ onMounted(() => {
       btn.setAttribute('data-full', 'true')
       btn.textContent = 'Show less'
     }
-onMounted(() => {
-  document.addEventListener('click', (e) => {
-    const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
-    if (!btn) return
-    const container = btn.closest('.read-container')
-    if (!container) return
-    const pre = container.querySelector('.read-collapsed')
-    const isFull = btn.getAttribute('data-full') === 'true'
-    if (!pre) return
-    if (isFull) {
-      // collapse by restoring inline max-height
-      pre.style.maxHeight = '3.6em'
-      btn.setAttribute('data-full', 'false')
-      btn.textContent = 'Show more'
-    } else {
-      // expand by removing max-height constraint
-      pre.style.maxHeight = 'none'
-      btn.setAttribute('data-full', 'true')
-      btn.textContent = 'Show less'
-    }
   })
   
   // Replace code block placeholders with CodeBlock component
