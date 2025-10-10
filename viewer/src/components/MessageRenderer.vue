@@ -115,7 +115,7 @@ function renderImage(c) {
     src = c.content
   }
   if (!src) return '<span class="image-indicator">[Image - no source]</span>'
-  return `<div class="image-content"><img src="${escapeHtml(src)}" alt="image" style="max-width:600px;height:auto;border-radius:4px"/></div>`
+  return `<div class="image-content"><img src="${escapeHtml(src)}" alt="image" style="max-height:4em;width:auto;border-radius:4px;cursor:pointer" onclick="window.open(this.src)"/></div>`
 }
 
 function renderMarkdown(c) {
