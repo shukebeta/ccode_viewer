@@ -17,6 +17,7 @@
 </template>
 
 <script>
+import { ElMessageBox, ElMessage } from 'element-plus'
 export default {
   props: ['project'],
   data() { return { sessions: [], loading: false } },
@@ -66,10 +67,20 @@ export default {
                d.getDate() === today.getDate()
       } catch (e) { return false }
     },
-    confirmDelete(session) {
-      const msg = 'Delete session from ' + this.formatTime(session.startTime) + '?'
-      if (confirm(msg)) {
+    async confirmDelete(session) {
+      try {
+        await ElMessageBox.confirm(
+          'Delete session from ' + this.formatTime(session.startTime) + '?',
+          'Confirm Delete',
+          {
+            confirmButtonText: 'Delete',
+            cancelButtonText: 'Cancel',
+            type: 'warning'
+          }
+        )
         this.deleteSession(session)
+      } catch (e) {
+        // User cancelled
       }
     },
     async deleteSession(session) {
@@ -80,7 +91,7 @@ export default {
         if (!res.ok) throw new Error('Delete failed')
         await this.load()
       } catch (e) {
-        alert('Failed to delete session: ' + e.message)
+        ElMessage.error('Failed to delete session: ' + e.message)
       }
     }
   }
