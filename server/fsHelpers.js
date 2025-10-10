@@ -330,7 +330,7 @@ async function readSessionFile(filePath) {
   }
 }
 
-module.exports = { getProjects, getSessions, readSessionFile }
+module.exports = { getProjects, getSessions, readSessionFile, deleteSession }
 
 async function mapSessionMessages(filePath) {
   const msgs = await readSessionFile(filePath)
@@ -523,4 +523,12 @@ async function searchInProject(projectId, keyword) {
 }
 
 module.exports.mapSessionMessages = mapSessionMessages
+
+async function deleteSession(filePath) {
+  try {
+    await fs.unlink(filePath)
+  } catch (err) {
+    throw new Error('Failed to delete session file: ' + err.message)
+  }
+}
 module.exports.searchInProject = searchInProject
