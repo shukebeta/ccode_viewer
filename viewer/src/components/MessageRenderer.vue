@@ -50,22 +50,8 @@ function renderCode(c) {
   return `<div class="read-container"><div class="__code_placeholder" data-lang="${escapeHtml('')}" data-raw="${escapeHtml(str)}" style="max-height:3.6em;overflow:hidden"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
 }
 
-
-function cleanToolResultContent(str) {
-  if (typeof str !== 'string') return str
-  
-  let cleaned = str
-  cleaned = cleaned.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
-  cleaned = cleaned.replace(/^\s*\d+→\s*/gm, '')
-  
-  return cleaned.trim()
-}
 function renderToolResult(c) {
-  let v = c && (c.content || c.text) || ''
-  
-  if (typeof v === 'string') {
-    v = cleanToolResultContent(v)
-  }
+  const v = c && (c.content || c.text) || ''
   
   // Handle empty tool results
   if (!v || (typeof v === 'string' && v.trim() === '')) {
