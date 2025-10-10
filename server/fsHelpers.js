@@ -445,7 +445,24 @@ async function mapSessionMessages(filePath) {
   }
 
   // Prepare simplified user list (id, preview, timestamp)
-  const usersOut = users.map(u => ({ id: u.id, preview: (typeof u.content === 'string' ? u.content : JSON.stringify(u.content)).substring(0,200), timestamp: u.timestamp, rawType: u.rawType || null }))
+  const usersOut = users.map(u => {
+    let preview = ''
+    if (typeof u.content === 'string') {
+      preview = u.content
+    } else if (Array.isArray(u.content)) {
+      // Extract text from content array (avoid truncating JSON structure)
+      const textItem = u.content.find(i => i && i.type === 'text')
+      preview = textItem && textItem.text ? textItem.text : JSON.stringify(u.content)
+    } else {
+      preview = JSON.stringify(u.content)
+    }
+    return { 
+      id: u.id, 
+      preview: preview.substring(0, 500), // Increase limit to 500
+      timestamp: u.timestamp, 
+      rawType: u.rawType || null 
+    }
+  })
 
   // Convert assistant messages to serializable form
   const mapOut = {}
