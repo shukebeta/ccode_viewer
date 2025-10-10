@@ -55,6 +55,33 @@ export default {
       if (!txt) return ''
       const s = String(txt).replace(/\s+/g, ' ').trim()
       return s.length > 50 ? s.slice(0,50) + '...' : s
+    },
+    isToday(ts) {
+      if (!ts) return false
+      try {
+        const d = new Date(ts)
+        const today = new Date()
+        return d.getFullYear() === today.getFullYear() &&
+               d.getMonth() === today.getMonth() &&
+               d.getDate() === today.getDate()
+      } catch (e) { return false }
+    },
+    confirmDelete(session) {
+      const msg = 'Delete session from ' + this.formatTime(session.startTime) + '?'
+      if (confirm(msg)) {
+        this.deleteSession(session)
+      }
+    },
+    async deleteSession(session) {
+      try {
+        const res = await fetch('/api/session?file=' + encodeURIComponent(session.filePath), {
+          method: 'DELETE'
+        })
+        if (!res.ok) throw new Error('Delete failed')
+        await this.load()
+      } catch (e) {
+        alert('Failed to delete session: ' + e.message)
+      }
     }
   }
 }
