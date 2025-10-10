@@ -83,7 +83,6 @@ export default {
         // User cancelled
       }
     },
-    },
     async deleteSession(session) {
       try {
         const res = await fetch('/api/session?file=' + encodeURIComponent(session.filePath), {
