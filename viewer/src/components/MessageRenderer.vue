@@ -246,6 +246,13 @@ function contentToHtml(c) {
     return '<div class="exit-plan-mode">' + planHtml + '</div>'
   }
   // read tool: auto-expand and show code block
+  // Bash tool: show command in shell-like format
+  if ((c.name === 'Bash' || c.toolName === 'Bash' || (c.message && c.message.name === 'Bash'))) {
+    const cmd = (c.input && c.input.command) || (c.command) || ''
+    const desc = (c.input && c.input.description) || (c.description) || ''
+    if (!cmd) return ''
+    return `<div class="bash-tool"><span class="bash-prompt">$</span> <code>${escapeHtml(cmd)}</code>${desc ? `<div class="bash-desc">${escapeHtml(desc)}</div>` : ''}</div>`
+  }
   if ((c.name === 'Read' || c.toolName === 'Read' || (c.action && c.action === 'read') || (c.message && c.message.name === 'Read') || (c.type === 'read'))) {
     return renderReadTool(c)
   }
