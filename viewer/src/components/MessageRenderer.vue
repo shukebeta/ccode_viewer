@@ -182,11 +182,6 @@ function renderReadTool(c) {
   const firstPath = pathCandidates.find(Boolean)
   if (firstPath) {
     return `<div class="read-summary">Reading: ${escapeHtml(String(firstPath))}</div>`
-.bash-tool { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace; background: #f6f7fb; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(2,6,23,0.04); font-size: 13px; }
-.bash-prompt { color: #059669; font-weight: 600; margin-right: 6px; }
-.bash-tool code { background: transparent; padding: 0; }
-.bash-desc { color: #6b7280; font-size: 12px; margin-top: 4px; font-family: system-ui, -apple-system, sans-serif; }
-.empty-tool-result { color: #9ca3af; font-style: italic; font-size: 13px; }
   }
 
   // Fallback: render the actual content as a code block, but default to a two-line collapsed preview
