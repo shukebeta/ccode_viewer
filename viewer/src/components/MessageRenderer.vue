@@ -457,6 +457,9 @@ onMounted(() => {
   })
   obs.observe(document.body, { childList: true, subtree: true })
   
+  replaceCodeBlocks()
+  replaceImages()
+  
   document.addEventListener('click', (e) => {
     const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
     if (!btn) return
