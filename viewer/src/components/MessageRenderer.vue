@@ -104,8 +104,18 @@ function renderJson(c) {
 }
 
 function renderImage(c) {
-  const src = c && (c.url || c.src || c.content) || ''
-  return `<div class="image-content"><img src="${escapeHtml(src)}" alt="image"/></div>`
+  // Support both direct url/src and nested source.data (base64)
+  let src = ''
+  if (c.url || c.src) {
+    src = c.url || c.src
+  } else if (c.source && c.source.type === 'base64' && c.source.data) {
+    const mediaType = c.source.media_type || 'image/png'
+    src = `data:${mediaType};base64,${c.source.data}`
+  } else if (c.content) {
+    src = c.content
+  }
+  if (!src) return '<span class="image-indicator">[Image - no source]</span>'
+  return `<div class="image-content"><img src="${escapeHtml(src)}" alt="image" style="max-width:600px;height:auto;border-radius:4px"/></div>`
 }
 
 function renderMarkdown(c) {
