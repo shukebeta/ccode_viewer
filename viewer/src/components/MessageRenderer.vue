@@ -456,9 +456,8 @@ onMounted(() => {
     replaceImages()
   })
   obs.observe(document.body, { childList: true, subtree: true })
-  })
-  obs.observe(document.body, { childList: true, subtree: true })
   
+  document.addEventListener('click', (e) => {
   document.addEventListener('click', (e) => {
     const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
     if (!btn) return
@@ -483,6 +482,7 @@ onMounted(() => {
     btn.textContent = 'Copied'
     setTimeout(() => { btn.textContent = old }, 1500)
   })
+})
 
 const isTodoWrite = computed(() => {
   const c = props.content
