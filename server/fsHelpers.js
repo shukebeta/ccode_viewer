@@ -458,6 +458,7 @@ async function mapSessionMessages(filePath) {
     }
     return { 
       id: u.id, 
+      content: u.content, // Preserve original structure for rendering
       preview: preview, // Keep full text for search data source
       timestamp: u.timestamp, 
       rawType: u.rawType || null 
