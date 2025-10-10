@@ -49,7 +49,12 @@ function renderCode(c) {
 
 function renderToolResult(c) {
   const v = c && (c.content || c.text) || ''
-  if (!v) return ''
+  
+  // Handle empty tool results
+  if (!v || (typeof v === 'string' && v.trim() === '')) {
+    return '<div class="empty-tool-result">(no output)</div>'
+  }
+  
   // if looks like JSON
   try {
     const parsed = JSON.parse(v)
