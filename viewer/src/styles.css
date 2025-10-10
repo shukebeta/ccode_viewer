@@ -65,3 +65,8 @@ h1 { font-size: 20px }
   font-style: italic;
   font-size: 13px;
 }
+
+/* Element Plus Image Viewer - darker background for better contrast */
+.el-image-viewer__mask {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+}
