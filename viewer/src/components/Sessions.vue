@@ -69,23 +69,9 @@ export default {
     },
     async confirmDelete(session) {
       const timeStr = this.formatTime(session.startTime)
-      const hasMessages = session.messageCount && session.messageCount > 0
-      const msg = !hasMessages
-        ? 'Delete this empty session?'
-        : timeStr
-          ? 'Delete session from ' + timeStr + '?'
-          : 'Delete this session?'
-      try {
-        await ElMessageBox.confirm(msg, 'Confirm Delete', {
-          confirmButtonText: 'Delete',
-          cancelButtonText: 'Cancel',
-          type: 'warning'
-        })
-        this.deleteSession(session)
-      } catch (e) {
-        // User cancelled
-      }
-    },
+      const msg = timeStr 
+        ? 'Delete session from ' + timeStr + '?'
+        : 'Delete this empty session?'
       try {
         await ElMessageBox.confirm(msg, 'Confirm Delete', {
           confirmButtonText: 'Delete',
