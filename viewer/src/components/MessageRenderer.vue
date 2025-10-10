@@ -458,7 +458,6 @@ onMounted(() => {
   obs.observe(document.body, { childList: true, subtree: true })
   
   document.addEventListener('click', (e) => {
-  document.addEventListener('click', (e) => {
     const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
     if (!btn) return
     const container = btn.closest('.read-container') || btn.closest('.message-renderer')
