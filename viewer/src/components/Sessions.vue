@@ -88,10 +88,6 @@ export default {
 </script>
 
 <style scoped>
-.session-row { display:flex; gap:4px; align-items:stretch }
-.session-card { flex:1 }
-.delete-btn { background:#dc3545; color:white; border:none; border-radius:6px; padding:0 12px; cursor:pointer; font-size:20px; font-weight:bold; min-width:32px }
-.delete-btn:hover { background:#c82333 }
 .sessions-list { list-style:none; padding:0; margin:8px 0 }
 .session-item { margin-bottom:8px }
 .session-card { display:block; width:100%; text-align:left; border:1px solid #eee; background:var(--card); padding:8px; border-radius:6px }
