@@ -13,7 +13,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick, createApp } from 'vue'
+import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
 
 const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true } })
@@ -394,24 +394,71 @@ onMounted(() => {
       btn.setAttribute('data-full', 'true')
       btn.textContent = 'Show less'
     }
+onMounted(() => {
+  document.addEventListener('click', (e) => {
+    const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
+    if (!btn) return
+    const container = btn.closest('.read-container')
+    if (!container) return
+    const pre = container.querySelector('.read-collapsed')
+    const isFull = btn.getAttribute('data-full') === 'true'
+    if (!pre) return
+    if (isFull) {
+      // collapse by restoring inline max-height
+      pre.style.maxHeight = '3.6em'
+      btn.setAttribute('data-full', 'false')
+      btn.textContent = 'Show more'
+    } else {
+      // expand by removing max-height constraint
+      pre.style.maxHeight = 'none'
+      btn.setAttribute('data-full', 'true')
+      btn.textContent = 'Show less'
+    }
   })
-  // After mount, replace any data-code blocks with a Vue CodeBlock instance rendered in-place
+  
+  // Replace code block placeholders with CodeBlock component
   const replaceCodeBlocks = async () => {
-    // Lazy load CodeBlock component to avoid circular deps
     try {
       const mod = await import('./CodeBlock.vue')
       const CodeBlockComp = mod.default
-      // Find all placeholders
       const placeholders = document.querySelectorAll('.__code_placeholder')
       placeholders.forEach((ph) => {
         const language = ph.getAttribute('data-lang') || ''
         const raw = ph.getAttribute('data-raw') || ''
-        // Create a mounting div
         const mount = document.createElement('div')
         ph.parentNode?.replaceChild(mount, ph)
-        // mount the component
         try {
           const app = createApp(CodeBlockComp, { language, value: raw })
+          if (mount) app.mount(mount)
+        } catch (e) {
+          // ignore mount errors
+        }
+      })
+    } catch (e) {
+      // ignore if dynamic import fails
+    }
+  }
+
+  // Replace image placeholders with ElImage component
+  const replaceImages = async () => {
+    try {
+      const { ElImage } = await import('element-plus')
+      const placeholders = document.querySelectorAll('.__image_placeholder')
+      placeholders.forEach((ph) => {
+        const src = ph.getAttribute('data-src') || ''
+        const mount = document.createElement('div')
+        ph.parentNode?.replaceChild(mount, ph)
+        try {
+          const app = createApp({
+            render() {
+              return h(ElImage, {
+                src: src,
+                style: 'max-height: 4em; width: auto; border-radius: 4px; cursor: pointer',
+                previewSrcList: [src],
+                fit: 'contain'
+              })
+            }
+          })
           if (mount) app.mount(mount)
         } catch (e) {
           // ignore mount errors
@@ -426,8 +473,10 @@ onMounted(() => {
   const obs = new MutationObserver(async () => {
     await nextTick()
     replaceCodeBlocks()
+    replaceImages()
   })
   obs.observe(document.body, { childList: true, subtree: true })
+})
 })
   // delegated handler for copying code blocks (buttons with .copy-code-btn)
   document.addEventListener('click', (e) => {
