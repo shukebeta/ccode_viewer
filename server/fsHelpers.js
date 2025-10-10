@@ -458,7 +458,7 @@ async function mapSessionMessages(filePath) {
     }
     return { 
       id: u.id, 
-      preview: preview.substring(0, 500), // Increase limit to 500
+      preview: preview, // Keep full text for search data source
       timestamp: u.timestamp, 
       rawType: u.rawType || null 
     }
