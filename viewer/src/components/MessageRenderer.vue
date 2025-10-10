@@ -30,7 +30,10 @@ function escapeHtml(s) {
 function renderPlain(c) {
   if (typeof c === 'string') return escapeHtml(c)
   if (Array.isArray(c)) return c.map(renderPlain).join('<br/>')
-  if (c && typeof c === 'object') return escapeHtml(c.text || JSON.stringify(c))
+  if (c && typeof c === 'object') {
+    if (c.type === 'image') return '<span class="image-indicator">[Image]</span>'
+    return escapeHtml(c.text || JSON.stringify(c))
+  }
   return ''
 }
 
