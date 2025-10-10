@@ -77,7 +77,13 @@ export default {
     onSelectProject(p) {
       this.project = p
       this.sessionFile = null
-      this.clearSearch()
+      
+      // If there's an active search query, re-trigger search in new project
+      if (this.searchQuery && this.searchQuery.length >= 3) {
+        this.onSearch(this.searchQuery)
+      } else {
+        this.clearSearch()
+      }
     },
     onSelectSession(file, sessionObj) {
       this.sessionFile = file
