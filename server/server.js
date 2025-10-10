@@ -32,6 +32,11 @@ app.get('/api/session', async (req, res) => {
 
 app.get('/api/session-mapping', async (req, res) => {
 
+  const file = req.query.file
+  if (!file) return res.status(400).json({ error: 'file query required' })
+  const mapping = await fsHelpers.mapSessionMessages(file)
+  res.json(mapping)
+})
 app.delete('/api/session', async (req, res) => {
   const file = req.query.file
   if (!file) return res.status(400).json({ error: 'file query required' })
@@ -42,11 +47,6 @@ app.delete('/api/session', async (req, res) => {
     console.error('Delete session error:', err)
     res.status(500).json({ error: err.message || 'Failed to delete session' })
   }
-})
-  const file = req.query.file
-  if (!file) return res.status(400).json({ error: 'file query required' })
-  const mapping = await fsHelpers.mapSessionMessages(file)
-  res.json(mapping)
 })
 
 // Cross-session search endpoint
