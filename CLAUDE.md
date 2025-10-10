@@ -1,5 +1,44 @@
 # Claude Code Viewer - Project-Specific Development Guidelines
 
+## UI Components - Element Plus
+
+**CRITICAL: Never use native browser dialogs**
+
+This project uses **Element Plus** as the UI component library. Always use modern components instead of 90s-style browser natives:
+
+❌ **FORBIDDEN:**
+- `alert()` - use `ElMessage` or `ElNotification`
+- `confirm()` - use `ElMessageBox.confirm()`
+- `prompt()` - use `ElMessageBox.prompt()`
+
+✅ **CORRECT:**
+```javascript
+// Import at top of <script>
+import { ElMessageBox, ElMessage } from 'element-plus'
+
+// Show confirmation
+await ElMessageBox.confirm('Delete this item?', 'Confirm', {
+  confirmButtonText: 'Delete',
+  cancelButtonText: 'Cancel',
+  type: 'warning'
+})
+
+// Show error message
+ElMessage.error('Operation failed')
+
+// Show success message
+ElMessage.success('Saved successfully')
+```
+
+**Common Element Plus components:**
+- Dialogs: `ElDialog`, `ElMessageBox`
+- Messages: `ElMessage`, `ElNotification`
+- Forms: `ElForm`, `ElInput`, `ElSelect`, `ElDatePicker`
+- Tables: `ElTable`
+- Buttons: `ElButton`
+
+Documentation: https://element-plus.org/
+
 ## Vue.js Component Styling
 
 **CRITICAL: Always use global CSS for dynamically rendered elements**
