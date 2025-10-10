@@ -4,7 +4,13 @@
     <div v-if="loading">Loading...</div>
     <ul v-else class="sessions-list">
       <li v-for="s in sessions" :key="s.filePath" class="session-item">
-        <button class="session-card" @click="$emit('select-session', s.filePath, s)">
+        <div class="session-row">
+          <button class="session-card" @click="$emit('select-session', s.filePath, s)">
+            <div class="session-time">{{ formatTime(s.lastTime || s.startTime) }} <span class="muted">({{ s.messageCount }})</span></div>
+            <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
+          </button>
+          <button v-if="!isToday(s.lastTime || s.startTime)" class="delete-btn" @click="confirmDelete(s)" title="Delete session">×</button>
+        </div>
           <div class="session-time">{{ formatTime(s.lastTime || s.startTime) }} <span class="muted">({{ s.messageCount }})</span></div>
           <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
         </button>
