@@ -11,9 +11,6 @@
           </button>
           <button v-if="!isToday(s.lastTime || s.startTime)" class="delete-btn" @click="confirmDelete(s)" title="Delete session">×</button>
         </div>
-          <div class="session-time">{{ formatTime(s.lastTime || s.startTime) }} <span class="muted">({{ s.messageCount }})</span></div>
-          <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
-        </button>
       </li>
     </ul>
   </div>
