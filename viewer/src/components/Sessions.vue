@@ -107,6 +107,8 @@ export default {
       // Otherwise show raw name
       return raw
     }
+  }
+}
 </script>
 
 <style scoped>
