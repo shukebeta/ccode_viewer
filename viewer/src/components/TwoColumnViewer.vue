@@ -1,25 +1,28 @@
 <template>
   <div class="two-col">
     <div class="left">
-      <h3>Users</h3>
-      <div v-if="loading">Loading...</div>
-      <ul v-else>
-        <li v-for="u in users" :key="u.id" class="user-item" :class="{ selected: selectedUser && selectedUser.id === u.id }">
-          <template v-if="u.nonInteractive">
-            <div class="user-preview muted-entry">{{ u.preview }}</div>
-          </template>
-          <template v-else>
-            <button class="user-preview" @click="selectUser(u)">
-              <MessageRenderer :content="u.content || u.preview || ''" :disableImagePreview="true" />
-            </button>
-          </template>
-        </li>
-      </ul>
+      <h3 class="column-header">Users</h3>
+      <div class="left-scroll">
+        <div v-if="loading">Loading...</div>
+        <ul v-else>
+          <li v-for="u in users" :key="u.id" class="user-item" :class="{ selected: selectedUser && selectedUser.id === u.id }">
+            <template v-if="u.nonInteractive">
+              <div class="user-preview muted-entry">{{ u.preview }}</div>
+            </template>
+            <template v-else>
+              <button class="user-preview" @click="selectUser(u)">
+                <MessageRenderer :content="u.content || u.preview || ''" :disableImagePreview="true" />
+              </button>
+            </template>
+          </li>
+        </ul>
+      </div>
     </div>
     <div class="right">
-      <h3>Conversation</h3>
-      <div v-if="allMessages.length === 0">No messages</div>
-      <ul>
+      <h3 class="column-header">Conversation</h3>
+      <div class="right-scroll">
+        <div v-if="allMessages.length === 0">No messages</div>
+        <ul>
   <li v-for="(m, idx) in allMessages" :key="m.id || idx" :id="`msg-${m.id || idx}`" class="assistant-item" :class="{ 'flash': m._flash }" :data-display="m.displayType">
             <div class="assistant-card card" :class="{ muted: m.muted }" style="position:relative">
             <div class="assistant-full">
