@@ -103,7 +103,7 @@ export default {
   outline: none;
 }
 
-.search-info {
+.search-actions {
   display: flex;
   align-items: center;
   gap: 8px;
