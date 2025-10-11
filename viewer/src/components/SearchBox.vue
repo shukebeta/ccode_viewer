@@ -70,6 +70,18 @@ export default {
 }
 </script>
 
+<style scoped>
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: var(--card, white);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
 .search-input-wrapper {
   position: relative;
   flex: 1;
@@ -88,25 +100,10 @@ export default {
 .search-input {
   width: 100%;
   padding: 6px 8px 6px 32px;
-}
-
-.search-input {
-  flex: 1;
-  padding: 6px 8px;
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 14px;
   outline: none;
-}
-
-.search-input:focus {
-  border-color: #60a5fa;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-  font-size: 16px;
-  color: #9ca3af;
-  pointer-events: none;
 }
 
 .search-info {
