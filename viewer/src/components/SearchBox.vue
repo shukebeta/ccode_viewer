@@ -107,8 +107,8 @@ export default {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  font-size: 13px;
-  color: #6b7280;
+  position: relative;
+  z-index: 10;
 }
 
 .loading {
@@ -123,13 +123,15 @@ export default {
 
 .clear-btn {
   padding: 4px 8px;
-  background: transparent;
+  background: white;
   border: 1px solid #d1d5db;
   border-radius: 4px;
   cursor: pointer;
   color: #6b7280;
   font-size: 14px;
   line-height: 1;
+  position: relative;
+  z-index: 20;
 }
 
 .clear-btn:hover {
