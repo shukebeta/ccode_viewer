@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3>Sessions for {{ project.name }}</h3>
+    <h3>{{ displayProjectName }}</h3>
     <div v-if="loading">Loading...</div>
     <ul v-else class="sessions-list">
       <li v-for="s in sessions" :key="s.filePath" class="session-item">
@@ -96,6 +96,19 @@ export default {
     }
   }
 }
+  },
+  computed: {
+    displayProjectName() {
+      if (!this.project || !this.project.name) return 'Sessions'
+      const raw = this.project.name
+      // If it's a path, show just the basename
+      if (raw.includes('/') || raw.includes('\\')) {
+        const parts = raw.split(/[\\\/]/).filter(Boolean)
+        return parts.length ? parts[parts.length - 1] : raw
+      }
+      // Otherwise show raw name
+      return raw
+    }
 </script>
 
 <style scoped>
