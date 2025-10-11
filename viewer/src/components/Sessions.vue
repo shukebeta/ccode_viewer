@@ -94,9 +94,8 @@ export default {
         ElMessage.error('Failed to delete session: ' + e.message)
       }
     }
-  }
-}
   },
+  computed: {
   computed: {
     displayProjectName() {
       if (!this.project || !this.project.name) return 'Sessions'
