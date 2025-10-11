@@ -101,7 +101,9 @@ export default {
 .search-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  width: 40px;
   flex-shrink: 0;
   position: relative;
   z-index: 10;
