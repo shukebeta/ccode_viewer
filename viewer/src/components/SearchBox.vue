@@ -13,7 +13,6 @@
       />
     </div>
     <div class="search-actions">
-      <span v-if="loading" class="loading">Searching...</span>
       <button v-if="query" class="clear-btn" @click="clearSearch" title="Clear search (Esc)">
         ✕
       </button>
