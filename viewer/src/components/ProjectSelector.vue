@@ -126,7 +126,6 @@ export default {
 .project-path {
   color: #6b7280;
   font-size: 13px;
-  font-size: 14px;
 }
 
 .project-meta {
