@@ -70,7 +70,7 @@ export default {
 .search-box {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   margin-bottom: 12px;
 }
 
@@ -101,13 +101,8 @@ export default {
 .search-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 50px;
+  gap: 4px;
   flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-  margin-left: 4px;
 }
 
 .loading {
@@ -117,18 +112,16 @@ export default {
 
 .result-count {
   color: #059669;
-  font-weight: 500;
-}
-
 .clear-btn {
-  padding: 4px 8px;
+  padding: 2px 6px;
   background: white;
   border: 1px solid #d1d5db;
   border-radius: 4px;
   cursor: pointer;
   color: #6b7280;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
+}
   position: relative;
   z-index: 20;
 }
