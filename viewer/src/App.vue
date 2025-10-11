@@ -165,10 +165,6 @@ export default {
   background: linear-gradient(180deg, rgba(250,250,252,0.8), rgba(244,247,250,0.6));
 }
 
-  margin: 0;
-  font-size: 1.5rem;
-}
-
 .layout {
   display: flex;
   flex: 1;
