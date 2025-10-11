@@ -1,58 +1,51 @@
 <template>
   <div class="app-root">
-    <h1>Claude Vite App</h1>
+    <div class="app-header">
+      <ProjectSelector
+        :selected="project"
+        @select-project="onSelectProject"
+      />
+      <h1>Claude Vite App</h1>
+    </div>
     <div class="layout">
-      <div class="col projects-col">
-        <Projects :selected="project" @select-project="onSelectProject" />
+      <div class="sessions-panel" v-if="project">
+        <SearchBox
+          :resultCount="searchResults.length"
+          :loading="searchLoading"
+          @search="onSearch"
+        />
+        <SearchResults
+          v-if="searchQuery"
+          :results="searchResults"
+          :query="searchQuery"
+          @select-result="onSelectSearchResult"
+          @clear-search="clearSearch"
+        />
+        <Sessions
+          v-else
+          :project="project"
+          @select-session="onSelectSession"
+        />
       </div>
-      <main class="main">
-        <div class="main-top">
-          <details ref="sessionsDetails" open class="sessions-dropdown" v-if="project">
-            <summary class="sessions-summary">
-              <template v-if="$refs.sessionsDetails && !$refs.sessionsDetails.open && selectedSession">
-                <div class="session-time">{{ formatTime(selectedSession.lastTime || selectedSession.startTime) }} <span class="muted">({{ selectedSession.messageCount }})</span></div>
-                <div class="session-preview">{{ shortPreview(selectedSession.preview || selectedSession.id) }}</div>
-              </template>
-              <template v-else>
-                {{ sessionFile ? sessionName : `Sessions for ${project.name}` }}
-              </template>
-            </summary>
-            <SearchBox
-              :resultCount="searchResults.length"
-              :loading="searchLoading"
-              @search="onSearch"
-            />
-            <SearchResults
-              v-if="searchQuery"
-              :results="searchResults"
-              :query="searchQuery"
-              @select-result="onSelectSearchResult"
-              @clear-search="clearSearch"
-            />
-            <Sessions
-              v-else
-              :project="project"
-              @select-session="onSelectSession"
-            />
-          </details>
-          <div></div>
-        </div>
+      <main class="main-panel">
         <TwoColumnViewer v-if="sessionFile" :file="sessionFile" :highlightUserId="highlightUserId" />
-        <div v-else class="placeholder">Select a session to view</div>
+        <div v-else class="placeholder">
+          {{ project ? 'Select a session to view' : 'Select a project to start' }}
+        </div>
       </main>
     </div>
   </div>
 </template>
 
 <script>
-import Projects from './components/Projects.vue'
+import ProjectSelector from './components/ProjectSelector.vue'
 import Sessions from './components/Sessions.vue'
 import SearchBox from './components/SearchBox.vue'
 import SearchResults from './components/SearchResults.vue'
 import TwoColumnViewer from './components/TwoColumnViewer.vue'
 
 export default {
-  components: { Projects, Sessions, SearchBox, SearchResults, TwoColumnViewer },
+  components: { ProjectSelector, Sessions, SearchBox, SearchResults, TwoColumnViewer },
   data() {
     return {
       project: null,
@@ -89,11 +82,6 @@ export default {
       this.sessionFile = file
       this.selectedSession = sessionObj || null
       this.highlightUserId = null
-      // auto-close the sessions dropdown so it no longer occupies space
-      try {
-        const d = this.$refs.sessionsDetails
-        if (d && typeof d.open !== 'undefined') d.open = false
-      } catch (e) { /* ignore */ }
     },
     async onSearch(query) {
       this.searchQuery = query
@@ -123,12 +111,6 @@ export default {
       this.highlightUserId = userId
       this.sessionFile = sessionFile
       this.selectedSession = null
-
-      // Close sessions dropdown
-      try {
-        const d = this.$refs.sessionsDetails
-        if (d && typeof d.open !== 'undefined') d.open = false
-      } catch (e) { /* ignore */ }
     },
     clearSearch() {
       this.searchQuery = ''
@@ -159,15 +141,52 @@ export default {
 </script>
 
 <style>
-.app-root { display: flex; flex-direction: column; height: 100vh }
-.app-root h1 { margin: 12px 16px }
-.layout { display: flex; gap: 16px; flex: 1; min-height: 0 }
-.col { padding: 8px; box-sizing: border-box; min-height: 0 }
-.projects-col { width: 260px; border-right: 1px solid rgba(2,6,23,0.04); background: linear-gradient(180deg, rgba(250,250,252,0.8), rgba(244,247,250,0.6)); }
-.main { flex: 1; padding-left: 12px; min-width: 0; min-height: 0; display: flex; flex-direction: column }
-.main-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px }
-.sessions-dropdown { width: 630px; background: var(--card); border: 1px solid #eee; border-radius: 6px; padding: 8px; margin-right: 12px; align-self: flex-start }
-.sessions-summary { font-weight: 600; cursor: pointer; padding: 4px 0 }
-.col, .main { overflow: auto }
-.placeholder { color: #666 }
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(2,6,23,0.08);
+  background: linear-gradient(180deg, rgba(250,250,252,0.8), rgba(244,247,250,0.6));
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sessions-panel {
+  width: 320px;
+  border-right: 1px solid rgba(2,6,23,0.08);
+  padding: 12px;
+  overflow-y: auto;
+  background: rgba(255,255,255,0.5);
+}
+
+.main-panel {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+.placeholder {
+  color: #666;
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 14px;
+}
 </style>
