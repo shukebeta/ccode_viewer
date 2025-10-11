@@ -12,11 +12,8 @@
         @keydown.esc="clearSearch"
       />
     </div>
-    <div class="search-info">
+    <div class="search-actions">
       <span v-if="loading" class="loading">Searching...</span>
-      <span v-else-if="query.length >= 3 && resultCount !== null" class="result-count">
-        {{ resultCount }} result{{ resultCount !== 1 ? 's' : '' }}
-      </span>
       <button v-if="query" class="clear-btn" @click="clearSearch" title="Clear search (Esc)">
         ✕
       </button>
