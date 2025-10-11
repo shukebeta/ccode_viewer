@@ -91,6 +91,7 @@ export default {
 
 .search-input {
   width: 100%;
+  max-width: 280px;
   padding: 6px 8px 6px 32px;
   border: 1px solid #d1d5db;
   border-radius: 4px;
