@@ -14,8 +14,9 @@
       :value="p.id"
     >
       <div class="project-option">
-        <div class="project-name">{{ displayName(p) }}</div>
-        <div class="project-path">{{ displayPath(p) }}</div>
+        <span class="project-name">{{ displayName(p) }}</span>
+        <span class="project-separator"> - </span>
+        <span class="project-path">{{ displayPath(p) }}</span>
       </div>
     </el-option>
   </el-select>
@@ -109,12 +110,22 @@ export default {
 
 .project-option {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 4px;
+  font-size: 14px;
 }
 
 .project-name {
   font-weight: 600;
+}
+
+.project-separator {
+  color: #9ca3af;
+}
+
+.project-path {
+  color: #6b7280;
+  font-size: 13px;
   font-size: 14px;
 }
 
