@@ -103,10 +103,11 @@ export default {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  width: 40px;
+  width: 50px;
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+  margin-left: 4px;
 }
 
 .loading {
