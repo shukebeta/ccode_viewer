@@ -112,6 +112,9 @@ export default {
 
 .result-count {
   color: #059669;
+  font-weight: 500;
+}
+
 .clear-btn {
   padding: 2px 6px;
   background: white;
@@ -121,7 +124,6 @@ export default {
   color: #6b7280;
   font-size: 16px;
   line-height: 1;
-}
   position: relative;
   z-index: 20;
 }
