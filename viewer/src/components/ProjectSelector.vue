@@ -13,12 +13,6 @@
       :label="displayName(p)"
       :value="p.id"
     >
-    <el-option
-      v-for="p in projects"
-      :key="p.id"
-      :label="displayName(p)"
-      :value="p.id"
-    >
       <div class="project-option">
         <div class="project-name">{{ displayName(p) }}</div>
         <div class="project-path">{{ displayPath(p) }}</div>
@@ -81,6 +75,16 @@ export default {
       const parts = raw.split('-').filter(Boolean)
       return parts.length ? parts[parts.length - 1].replace(/-/g, ' ') : raw
     },
+    },
+    displayPath(p) {
+      // Show the resolved name (which may already be a full path) or fallback to stored path
+      if (p.name && (p.name.includes('/') || p.name.includes('\\'))) {
+        return p.name.replace(/\\/g, '/')
+      }
+      if (p.path) {
+        return p.path.replace(/\\/g, '/')
+      }
+      return p.name
     onProjectChange(projectId) {
       const project = this.projects.find(p => p.id === projectId)
       if (project) {
