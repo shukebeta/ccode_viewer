@@ -450,7 +450,6 @@ onMounted(() => {
       // ignore if dynamic import fails
     }
   }
-  }
 
   // Observe DOM changes to replace placeholders inserted via v-html
   const obs = new MutationObserver(async () => {
