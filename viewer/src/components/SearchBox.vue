@@ -1,15 +1,17 @@
 <template>
   <div class="search-box">
-    <input
-      ref="searchInput"
-      v-model="query"
-      type="text"
-      placeholder="(min 3 chars)"
-      class="search-input"
-      @input="onInput"
-      @keydown.esc="clearSearch"
-    />
-    <span class="search-icon">🔍</span>
+    <div class="search-input-wrapper">
+      <span class="search-icon">🔍</span>
+      <input
+        ref="searchInput"
+        v-model="query"
+        type="text"
+        placeholder="(min 3 chars)"
+        class="search-input"
+        @input="onInput"
+        @keydown.esc="clearSearch"
+      />
+    </div>
     <div class="search-info">
       <span v-if="loading" class="loading">Searching...</span>
       <span v-else-if="query.length >= 3 && resultCount !== null" class="result-count">
@@ -68,16 +70,24 @@ export default {
 }
 </script>
 
-<style scoped>
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 8px;
-  background: var(--card, white);
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 6px 8px 6px 32px;
 }
 
 .search-input {
@@ -94,7 +104,6 @@ export default {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
-.search-icon {
   font-size: 16px;
   color: #9ca3af;
   pointer-events: none;
