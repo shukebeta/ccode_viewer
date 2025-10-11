@@ -5,7 +5,7 @@
         :selected="project"
         @select-project="onSelectProject"
       />
-      <h1>Claude Vite App</h1>
+      <h1>Claude Code Conversation Console</h1>
     </div>
     <div class="layout">
       <div class="sessions-panel" v-if="project">
