@@ -10,7 +10,7 @@
           </template>
           <template v-else>
             <button class="user-preview" @click="selectUser(u)">
-              <MessageRenderer :content="u.content || u.preview || ''" />
+              <MessageRenderer :content="u.content || u.preview || ''" :disableImagePreview="true" />
             </button>
           </template>
         </li>
