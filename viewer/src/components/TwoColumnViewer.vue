@@ -40,6 +40,8 @@
           </div>
         </li>
       </ul>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
@@ -367,14 +369,47 @@ export default {
 
 <style>
 .two-col { display: flex; gap: 12px; height: 100%; min-height: 0 }
-.left { width: 320px; height: 100%; min-height: 0; overflow: auto }
+
+.column-header {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+  padding: 8px 0;
+  margin: 0;
+  border-bottom: 1px solid #eee;
+}
+
+.left { 
+  width: 320px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .left ul { padding: 0; margin: 0; list-style: none }
-.left li { margin-bottom: 6px }
-.left button { display: block; width: 100%; text-align: left; padding: 8px; border: 1px solid #eee; border-radius: 4px; background: white; box-sizing: border-box }
-.left button:hover { background: #fafafa }
-.left li.selected .user-preview { background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.12) }
-.muted-entry { color: #666; font-style: italic; padding: 6px 8px; border: 1px solid #f0f0f0; border-radius:4px; background: #fbfbfb; line-height:1.1; margin:4px 0 }
-.right { flex: 1; min-width: 0; height: 100%; min-height: 0; overflow: auto }
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.right-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.right ul { padding: 0; margin: 0; list-style: none }
 .right ul { padding: 0; margin: 0; list-style: none }
 pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; margin: 0; }
 
