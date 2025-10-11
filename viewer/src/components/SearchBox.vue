@@ -13,7 +13,7 @@
       />
     </div>
     <div class="search-actions">
-      <button v-if="query" class="clear-btn" @click="clearSearch" title="Clear search (Esc)">
+      <button v-show="query.length > 0" class="clear-btn" @click="clearSearch" title="Clear search (Esc)">
         ✕
       </button>
     </div>
