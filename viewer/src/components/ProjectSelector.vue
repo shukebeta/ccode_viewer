@@ -18,6 +18,8 @@
         <div class="project-path">{{ displayPath(p) }}</div>
       </div>
     </el-option>
+  </el-select>
+</template>
 
 <script>
 export default {
