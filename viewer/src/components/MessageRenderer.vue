@@ -115,7 +115,8 @@ function renderImage(c) {
     src = c.content
   }
   if (!src) return '<span class="image-indicator">[Image - no source]</span>'
-  return `<div class="__image_placeholder" data-src="${escapeHtml(src)}"></div>`
+  const disablePreview = props.disableImagePreview ? 'true' : 'false'
+  return `<div class="__image_placeholder" data-src="${escapeHtml(src)}" data-disable-preview="${disablePreview}"></div>`
 }
 
 function renderMarkdown(c) {
