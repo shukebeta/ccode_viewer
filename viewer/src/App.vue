@@ -160,7 +160,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(2,6,23,0.08);
   background: linear-gradient(180deg, rgba(250,250,252,0.8), rgba(244,247,250,0.6));
 }
