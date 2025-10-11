@@ -107,7 +107,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 100px;
+  flex-shrink: 0;
   font-size: 13px;
   color: #6b7280;
 }
