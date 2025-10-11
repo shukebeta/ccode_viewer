@@ -94,6 +94,12 @@ export default {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
+.search-icon {
+  font-size: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
 .search-info {
   display: flex;
   align-items: center;
