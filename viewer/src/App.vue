@@ -1,11 +1,11 @@
 <template>
   <div class="app-root">
+    <div class="app-title">Claude Code Conversation Console</div>
     <div class="app-header">
       <ProjectSelector
         :selected="project"
         @select-project="onSelectProject"
       />
-      <h1>Claude Code Conversation Console</h1>
     </div>
     <div class="layout">
       <div class="sessions-panel" v-if="project">
@@ -147,16 +147,24 @@ export default {
   height: 100vh;
 }
 
+.app-title {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid rgba(2,6,23,0.06);
+  background: rgba(250,250,252,0.5);
+}
+
 .app-header {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid rgba(2,6,23,0.08);
   background: linear-gradient(180deg, rgba(250,250,252,0.8), rgba(244,247,250,0.6));
 }
 
-.app-header h1 {
   margin: 0;
   font-size: 1.5rem;
 }
