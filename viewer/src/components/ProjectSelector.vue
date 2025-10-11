@@ -87,13 +87,13 @@ export default {
       }
       return p.name
     },
-    onProjectChange(projectId) {
-      const project = this.projects.find(p => p.id === projectId)
     displayFullLabel(p) {
       const name = this.displayName(p)
       const path = this.displayPath(p)
       return path && path !== name ? `${name} - ${path}` : name
     },
+    onProjectChange(projectId) {
+      const project = this.projects.find(p => p.id === projectId)
       if (project) {
         this.$emit('select-project', project)
       }
