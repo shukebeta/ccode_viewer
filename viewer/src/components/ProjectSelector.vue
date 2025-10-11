@@ -75,22 +75,22 @@ export default {
       const parts = raw.split('-').filter(Boolean)
       return parts.length ? parts[parts.length - 1].replace(/-/g, ' ') : raw
     },
-    },
     displayPath(p) {
       // Show the resolved name (which may already be a full path) or fallback to stored path
       if (p.name && (p.name.includes('/') || p.name.includes('\\'))) {
         return p.name.replace(/\\/g, '/')
       }
+      if (p.path) {
         return p.path.replace(/\\/g, '/')
       }
       return p.name
+    },
     onProjectChange(projectId) {
       const project = this.projects.find(p => p.id === projectId)
       if (project) {
         this.$emit('select-project', project)
       }
     }
-    },
   }
 }
 </script>
