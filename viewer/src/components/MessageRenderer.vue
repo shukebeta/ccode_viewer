@@ -16,7 +16,7 @@
 import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
 
-const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true } })
+const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true }, disableImagePreview: { type: Boolean, default: false } })
 const emit = defineEmits([])
 
 
