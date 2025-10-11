@@ -1,7 +1,7 @@
 <template>
   <div class="search-results">
     <div class="results-header">
-      <h3>Search Results</h3>
+      <h3>{{ results.length }} result{{ results.length !== 1 ? 's' : '' }}</h3>
       <button class="clear-search-btn" @click="$emit('clear-search')">
         Back to Sessions
       </button>
