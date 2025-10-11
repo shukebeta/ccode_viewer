@@ -81,7 +81,6 @@ export default {
       if (p.name && (p.name.includes('/') || p.name.includes('\\'))) {
         return p.name.replace(/\\/g, '/')
       }
-      if (p.path) {
         return p.path.replace(/\\/g, '/')
       }
       return p.name
@@ -91,6 +90,7 @@ export default {
         this.$emit('select-project', project)
       }
     }
+    },
   }
 }
 </script>
