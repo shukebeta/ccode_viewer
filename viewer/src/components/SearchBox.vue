@@ -4,11 +4,12 @@
       ref="searchInput"
       v-model="query"
       type="text"
-      placeholder="Search in project... (min 3 chars)"
+      placeholder="(min 3 chars)"
       class="search-input"
       @input="onInput"
       @keydown.esc="clearSearch"
     />
+    <span class="search-icon">🔍</span>
     <div class="search-info">
       <span v-if="loading" class="loading">Searching...</span>
       <span v-else-if="query.length >= 3 && resultCount !== null" class="result-count">
