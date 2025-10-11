@@ -96,7 +96,6 @@ export default {
     }
   },
   computed: {
-  computed: {
     displayProjectName() {
       if (!this.project || !this.project.name) return 'Sessions'
       const raw = this.project.name
