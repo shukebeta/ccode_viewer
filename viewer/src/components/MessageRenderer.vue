@@ -419,13 +419,13 @@ onMounted(() => {
       // ignore if dynamic import fails
     }
   }
-
   const replaceImages = async () => {
     try {
       const { ElImage } = await import('element-plus')
       const placeholders = document.querySelectorAll('.__image_placeholder')
       placeholders.forEach((ph) => {
         const src = ph.getAttribute('data-src') || ''
+        const disablePreview = ph.getAttribute('data-disable-preview') === 'true'
         const mount = document.createElement('div')
         ph.parentNode?.replaceChild(mount, ph)
         try {
@@ -434,7 +434,7 @@ onMounted(() => {
             style: 'max-height: 4em; width: auto; border-radius: 4px; cursor: pointer',
             fit: 'contain'
           }
-          if (!props.disableImagePreview) {
+          if (!disablePreview) {
             imageProps.previewSrcList = [src]
           }
           const app = createApp({
@@ -450,6 +450,7 @@ onMounted(() => {
     } catch (e) {
       // ignore if dynamic import fails
     }
+  }
   }
 
   // Observe DOM changes to replace placeholders inserted via v-html
