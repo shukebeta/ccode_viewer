@@ -10,7 +10,7 @@
     <el-option
       v-for="p in projects"
       :key="p.id"
-      :label="displayName(p)"
+      :label="displayFullLabel(p)"
       :value="p.id"
     >
       <div class="project-option">
@@ -89,6 +89,11 @@ export default {
     },
     onProjectChange(projectId) {
       const project = this.projects.find(p => p.id === projectId)
+    displayFullLabel(p) {
+      const name = this.displayName(p)
+      const path = this.displayPath(p)
+      return path && path !== name ? `${name} - ${path}` : name
+    },
       if (project) {
         this.$emit('select-project', project)
       }
