@@ -281,6 +281,10 @@ function contentToHtml(c) {
   }
   // read tool: auto-expand and show code block
   // Bash tool: show command in shell-like format
+  // Grep tool: show search parameters
+  if ((c.name === 'Grep' || c.toolName === 'Grep' || (c.message && c.message.name === 'Grep'))) {
+    return renderGrepTool(c)
+  }
   if ((c.name === 'Bash' || c.toolName === 'Bash' || (c.message && c.message.name === 'Bash'))) {
     const cmd = (c.input && c.input.command) || (c.command) || ''
     const desc = (c.input && c.input.description) || (c.description) || ''
