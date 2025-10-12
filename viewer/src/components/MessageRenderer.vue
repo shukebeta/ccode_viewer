@@ -539,6 +539,8 @@ const systemNote = computed(() => {
 .copy-json .copied-label { margin-left: 6px; font-size: 11px; color: #0b6; background: rgba(11,102,51,0.08); padding: 2px 6px; border-radius: 4px }
 
 /* ensure headings inside message renderer are not too prominent */
+.message-renderer { position: relative }
+
 .message-renderer h1, .message-renderer h2, .message-renderer h3 { margin: 0.2rem 0; font-weight: 600; font-size: 1rem }
 
 /* wrapped code */
