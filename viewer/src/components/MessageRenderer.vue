@@ -459,19 +459,39 @@ function isCodeLike(text) {
 let globalListenersRegistered = false
 
 const handleToggleClick = (e) => {
+  console.log('[Toggle] Click event:', e.target)
+
   const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
-  if (!btn) return
+  if (!btn) {
+    console.log('[Toggle] Not a toggle button, ignoring')
+    return
+  }
+
+  console.log('[Toggle] Button found:', btn.textContent)
 
   const container = btn.closest('.read-container')
-  if (!container) return
+  if (!container) {
+    console.log('[Toggle] No container found')
+    return
+  }
+
+  console.log('[Toggle] Container found')
 
   // Find target: try .read-collapsed first, then first child of container
   let pre = container.querySelector('.read-collapsed')
   if (!pre) {
+    console.log('[Toggle] No .read-collapsed, using firstElementChild')
     pre = container.firstElementChild
+  } else {
+    console.log('[Toggle] Found .read-collapsed')
   }
 
-  if (!pre) return
+  if (!pre) {
+    console.log('[Toggle] No target element!')
+    return
+  }
+
+  console.log('[Toggle] Target element:', pre, 'Current maxHeight:', pre.style.maxHeight)
 
   const isFull = btn.getAttribute('data-full') === 'true'
 
@@ -480,11 +500,13 @@ const handleToggleClick = (e) => {
     pre.style.maxHeight = '3.6em'
     btn.setAttribute('data-full', 'false')
     btn.textContent = 'Show more'
+    console.log('[Toggle] Collapsed')
   } else {
     // expand by removing max-height constraint
     pre.style.maxHeight = 'none'
     btn.setAttribute('data-full', 'true')
     btn.textContent = 'Show less'
+    console.log('[Toggle] Expanded to maxHeight:', pre.style.maxHeight)
   }
 }
 
