@@ -12,6 +12,9 @@
 import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
 
+// Configure marked to disable deprecated mangle option
+marked.setOptions({ mangle: false, headerIds: false })
+
 const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true }, disableImagePreview: { type: Boolean, default: false } })
 const emit = defineEmits([])
 
