@@ -66,7 +66,7 @@ function ansiToHtml(str) {
            styles.italic || styles.underline || styles.strikethrough
   }
 
-  html = html.replace(/\x1b\[([0-9;]+)m/g, (match, codes) => {
+  html = html.replace(/\x1b\[([0-9;]*)m/g, (match, codes) => {
     const parts = codes.split(';')
     let result = ''
 
