@@ -1,9 +1,5 @@
 <template>
   <div class="message-renderer">
-  <button v-if="rawJson && showRawCopy" class="copy-json" @click="copyRaw" :title="copied ? 'Copied' : 'Copy original JSON'">
-      ⧉
-      <span v-if="copied" class="copied-label">Copied</span>
-    </button>
     <div v-if="isTodoWrite" class="todo-container">
       <div class="todo-list" v-html="todoHtml"></div>
       <div v-if="systemNote" class="system-note" v-html="escapeHtml(systemNote)"></div>
