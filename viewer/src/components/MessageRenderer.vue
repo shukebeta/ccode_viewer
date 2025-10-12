@@ -510,6 +510,9 @@ const systemNote = computed(() => {
 .interruption { color: #666; font-style: italic; }
 .command-msg { color: #666; font-weight: 600 }
 .read-summary { font-size: 13px; color: #111; background: #f6f7fb; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(2,6,23,0.04); }
+.grep-tool { font-size: 13px; color: #111; background: #f0f7fb; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(2,6,23,0.04); display: flex; align-items: center; gap: 6px; }
+.grep-tool .grep-icon { font-size: 14px; }
+.grep-tool .grep-args { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace; font-size: 12px; }
 
 /* ensure headings inside message renderer are not too prominent */
 .message-renderer { position: relative }
