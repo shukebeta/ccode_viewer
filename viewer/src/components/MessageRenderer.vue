@@ -461,12 +461,7 @@ onMounted(() => {
     if (!btn) return
     const container = btn.closest('.read-container')
     if (!container) return
-    // Find target element: try .read-collapsed first, then first child of container
-    let pre = container.querySelector('.read-collapsed')
-    if (!pre) {
-      // Fallback: find first div/pre/code child (for replaced code blocks)
-      pre = container.querySelector('div:first-child, pre:first-child')
-    }
+    const pre = container.querySelector('.read-collapsed')
     const isFull = btn.getAttribute('data-full') === 'true'
     if (!pre) return
     if (isFull) {
@@ -492,6 +487,12 @@ onMounted(() => {
         const language = ph.getAttribute('data-lang') || ''
         const raw = ph.getAttribute('data-raw') || ''
         const mount = document.createElement('div')
+        // Preserve collapsed state if placeholder had max-height style
+        if (ph.style.maxHeight) {
+          mount.classList.add('read-collapsed')
+          mount.style.maxHeight = ph.style.maxHeight
+          mount.style.overflow = 'hidden'
+        }
         ph.parentNode?.replaceChild(mount, ph)
         try {
           const app = createApp(CodeBlockComp, { language, value: raw })
