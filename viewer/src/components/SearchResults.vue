@@ -13,7 +13,11 @@
 
     <ul v-else class="results-list">
       <li v-for="result in results" :key="result.userMessage.id + result.sessionFile" class="result-item">
-        <button class="result-card" @click="selectResult(result)">
+        <button
+          class="result-card"
+          :class="{ selected: selectedResultId === (result.userMessage.id + result.sessionFile) }"
+          @click="selectResult(result)"
+        >
           <div class="result-meta">
             <span class="result-time">{{ formatTime(result.timestamp) }}</span>
             <span class="result-session">{{ formatSessionId(result.sessionId) }}</span>
@@ -31,8 +35,14 @@
 <script>
 export default {
   props: ['results', 'query'],
+  data() {
+    return {
+      selectedResultId: null
+    }
+  },
   methods: {
     selectResult(result) {
+      this.selectedResultId = result.userMessage.id + result.sessionFile
       this.$emit('select-result', {
         sessionFile: result.sessionFile,
         userId: result.userMessage.id
@@ -140,6 +150,12 @@ export default {
   background: #f9fafb;
   border-color: #3b82f6;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.result-card.selected {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
 }
 
 .result-meta {

@@ -39,7 +39,6 @@
             </div>
           </div>
         </li>
-      </ul>
         </ul>
       </div>
     </div>
@@ -53,7 +52,15 @@ export default {
   components: { MessageRenderer },
   props: ['file', 'highlightUserId'],
   data() {
-    return { users: [], mapping: {}, allMessages: [], loading: false, selectedUser: null, es: null }
+    return {
+      users: [],
+      mapping: {},
+      allMessages: [],
+      loading: false,
+      selectedUser: null,
+      es: null,
+      sessionCache: new Map() // Cache for session data
+    }
   },
   async mounted() { await this.load() },
   watch: {
@@ -75,10 +82,39 @@ export default {
   methods: {
     async load() {
       if (!this.file) return
+
+      // Check cache first
+      if (this.sessionCache.has(this.file)) {
+        console.log('[TwoCol] Cache HIT for', this.file)
+        const cached = this.sessionCache.get(this.file)
+        this.users = cached.users
+        this.mapping = cached.mapping
+        this.selectedUser = null
+        this.loading = false
+        this.rebuildAllMessages()
+
+        // Auto-highlight if needed
+        if (this.highlightUserId) {
+          const user = this.users.find(u => u.id === this.highlightUserId)
+          if (user) {
+            this.$nextTick(() => {
+              this.selectUser(user)
+            })
+          }
+        }
+
+        // Still setup SSE for live updates
+        this.setupEventSource()
+        return
+      }
+
       this.loading = true
+      console.log('[TwoCol] Cache MISS, fetching...', this.file)
+      const fetchStart = performance.now()
       try {
         const res = await fetch('/api/session-mapping?file=' + encodeURIComponent(this.file))
         const json = await res.json()
+        console.log('[TwoCol] Fetch took', (performance.now() - fetchStart).toFixed(0), 'ms')
         // Clean initial users/mapping: remove skippable entries and mark interruptions
         const rawUsers = json.users || []
         const rawMapping = json.mapping || {}
@@ -122,22 +158,18 @@ export default {
         }
   this.mapping = cleaned
   this.selectedUser = null
+
+        // Cache the processed data
+        this.sessionCache.set(this.file, {
+          users: this.users,
+          mapping: this.mapping
+        })
+
   // build the flat ordered message stream for right-side full view
   this.rebuildAllMessages()
+
         // setup SSE
-        this.cleanupEventSource()
-        try {
-          this.es = new EventSource('/api/events?file=' + encodeURIComponent(this.file))
-          this.es.addEventListener('session_appended', (ev) => {
-            try {
-              const d = JSON.parse(ev.data)
-              // d: { file, line }
-              const m = JSON.parse(d.line)
-              // Re-map single appended message
-              this.integrateMessage(m)
-            } catch (e) { console.error('SSE parse error', e) }
-          })
-        } catch (e) { console.error('EventSource error', e) }
+        this.setupEventSource()
       } catch (e) { console.error(e) }
       this.loading = false
 
@@ -150,6 +182,24 @@ export default {
           })
         }
       }
+    },
+    setupEventSource() {
+      this.cleanupEventSource()
+      try {
+        this.es = new EventSource('/api/events?file=' + encodeURIComponent(this.file))
+        this.es.addEventListener('session_appended', (ev) => {
+          try {
+            const d = JSON.parse(ev.data)
+            const m = JSON.parse(d.line)
+            this.integrateMessage(m)
+            // Update cache when new messages arrive
+            this.sessionCache.set(this.file, {
+              users: this.users,
+              mapping: this.mapping
+            })
+          } catch (e) { console.error('SSE parse error', e) }
+        })
+      } catch (e) { console.error('EventSource error', e) }
     },
     cleanupEventSource() {
       if (this.es) {
@@ -286,6 +336,17 @@ export default {
       if (u && u.nonInteractive) return
       this.selectedUser = u
       this.$nextTick(() => {
+        // Scroll Users column (left side) to the selected user
+        const userIndex = this.users.findIndex(user => user.id === u.id)
+        if (userIndex >= 0) {
+          const leftScroll = document.querySelector('.left-scroll')
+          const userItems = leftScroll?.querySelectorAll('.user-item')
+          if (userItems && userItems[userIndex]) {
+            userItems[userIndex].scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }
+
+        // Scroll Conversation column (right side) to the message
         const id = `msg-${u.id}`
         const el = document.getElementById(id)
         if (!el) return
@@ -373,28 +434,40 @@ export default {
 .column-header {
   position: sticky;
   top: 0;
-  background: white;
   z-index: 10;
   padding: 8px 0;
-  margin: 0;
-  border-bottom: 1px solid #eee;
+  margin: 0 0 8px 0;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.left { 
+.left {
   width: 320px;
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  border-right: 1px solid #d1d5db;
+  padding-right: 12px;
+  margin-right: 12px;
 }
 
 .left-scroll {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding-right: 4px;
 }
 
 .left ul { padding: 0; margin: 0; list-style: none }
+.left li { margin-bottom: 6px; margin-right: 4px; }
+.left button { display: block; width: 100%; text-align: left; padding: 8px; border: 1px solid #eee; border-radius: 4px; background: white; box-sizing: border-box }
+.left button:hover { background: #fafafa }
+.left li.selected .user-preview { background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.12) }
+.muted-entry { color: #666; font-style: italic; padding: 6px 8px; border: 1px solid #f0f0f0; border-radius:4px; background: #fbfbfb; line-height:1.1; margin:4px 0 }
+
+.right {
   flex: 1;
   min-width: 0;
   height: 100%;
@@ -407,10 +480,11 @@ export default {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding-right: 8px;
 }
 
 .right ul { padding: 0; margin: 0; list-style: none }
-.right ul { padding: 0; margin: 0; list-style: none }
+.right li { margin-right: 8px; }
 pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; margin: 0; }
 
 /* compact dashed separator between assistant replies */

@@ -24,6 +24,7 @@
         <Sessions
           v-else
           :project="project"
+          :currentSessionFile="sessionFile"
           @select-session="onSelectSession"
         />
       </div>
@@ -174,7 +175,7 @@ export default {
 
 .sessions-panel {
   width: 320px;
-  border-right: 1px solid rgba(2,6,23,0.08);
+  border-right: 1px solid #d1d5db;
   padding: 12px;
   overflow-y: auto;
   background: rgba(255,255,255,0.5);

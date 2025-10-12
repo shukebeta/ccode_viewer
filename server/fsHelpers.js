@@ -444,15 +444,37 @@ async function mapSessionMessages(filePath) {
     }
   }
 
+  // Helper: check if content contains image (to avoid expensive stringify)
+  const containsImage = (content) => {
+    if (!content) return false
+    if (Array.isArray(content)) {
+      return content.some(item => item && item.type === 'image')
+    }
+    if (typeof content === 'object' && content.type === 'image') {
+      return true
+    }
+    return false
+  }
+
   // Prepare simplified user list (id, preview, timestamp)
   const usersOut = users.map(u => {
     let preview = ''
     if (typeof u.content === 'string') {
       preview = u.content
     } else if (Array.isArray(u.content)) {
-      // Extract text from content array (avoid truncating JSON structure)
+      // Extract text from content array
       const textItem = u.content.find(i => i && i.type === 'text')
-      preview = textItem && textItem.text ? textItem.text : JSON.stringify(u.content)
+      if (textItem && textItem.text) {
+        preview = textItem.text
+      } else if (containsImage(u.content)) {
+        // Don't stringify large image data
+        preview = '[Image]'
+      } else {
+        preview = JSON.stringify(u.content)
+      }
+    } else if (containsImage(u.content)) {
+      // Don't stringify image objects
+      preview = '[Image]'
     } else {
       preview = JSON.stringify(u.content)
     }
@@ -488,8 +510,27 @@ async function searchInProject(projectId, keyword) {
       try {
         const { users, mapping } = await mapSessionMessages(session.filePath)
 
+        // Helper: check if content contains image
+        const containsImage = (content) => {
+          if (!content) return false
+          if (typeof content === 'string') {
+            // Check if it's stringified JSON containing image
+            if (content.includes('"type":"image"')) return true
+          }
+          if (Array.isArray(content)) {
+            return content.some(item => item && item.type === 'image')
+          }
+          if (typeof content === 'object' && content.type === 'image') {
+            return true
+          }
+          return false
+        }
+
         // Search through user messages
         for (const user of users) {
+          // Skip messages containing images
+          if (containsImage(user.content)) continue
+
           const preview = user.preview || ''
           if (preview.toLowerCase().includes(keywordLower)) {
             // Get assistant replies for this user message

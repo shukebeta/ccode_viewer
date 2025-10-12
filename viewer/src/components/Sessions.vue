@@ -5,7 +5,11 @@
     <ul v-else class="sessions-list">
       <li v-for="s in sessions" :key="s.filePath" class="session-item">
         <div class="session-row">
-          <button class="session-card" @click="$emit('select-session', s.filePath, s)">
+          <button
+            class="session-card"
+            :class="{ active: s.filePath === currentSessionFile }"
+            @click="$emit('select-session', s.filePath, s)"
+          >
             <div class="session-time">{{ formatTime(s.lastTime || s.startTime) }} <span class="muted">({{ s.messageCount }})</span></div>
             <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
           </button>
@@ -19,8 +23,21 @@
 <script>
 import { ElMessageBox, ElMessage } from 'element-plus'
 export default {
-  props: ['project'],
+  props: ['project', 'currentSessionFile'],
   data() { return { sessions: [], loading: false } },
+  mounted() {
+    // Scroll to active session on mount (when returning from search)
+    if (this.currentSessionFile) {
+      this.$nextTick(() => {
+        setTimeout(() => {
+          const activeButton = document.querySelector('.session-card.active')
+          if (activeButton) {
+            activeButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 100)
+      })
+    }
+  },
   watch: {
     project: {
       immediate: true,
@@ -114,7 +131,29 @@ export default {
 <style scoped>
 .sessions-list { list-style:none; padding:0; margin:8px 0 }
 .session-item { margin-bottom:8px }
-.session-card { display:block; width:100%; text-align:left; border:1px solid #eee; background:var(--card); padding:8px; border-radius:6px }
+.session-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #eee;
+  background: var(--card);
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.12s;
+}
+
+.session-card:hover {
+  background: #f9fafb;
+}
+
+.session-card.active {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: #3b82f6;
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+  font-weight: 600;
+}
+
 .session-time { font-weight:600; font-size:13px; margin-bottom:4px }
 .session-preview { color:var(--muted); font-size:13px }
 .muted { color:#888; font-size:12px; margin-left:6px }
