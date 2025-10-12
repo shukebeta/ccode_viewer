@@ -506,10 +506,11 @@ onMounted(() => {
         const language = ph.getAttribute('data-lang') || ''
         const raw = ph.getAttribute('data-raw') || ''
         const mount = document.createElement('div')
-        // Preserve collapsed state if placeholder had max-height style
-        if (ph.style.maxHeight) {
+        // If placeholder is in a .read-container, it should be collapsible
+        const isCollapsible = ph.closest('.read-container') !== null
+        if (isCollapsible) {
           mount.classList.add('read-collapsed')
-          mount.style.maxHeight = ph.style.maxHeight
+          mount.style.maxHeight = '3.6em'
           mount.style.overflow = 'hidden'
         }
         ph.parentNode?.replaceChild(mount, ph)
