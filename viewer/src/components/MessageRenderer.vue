@@ -19,6 +19,53 @@ const props = defineProps({ content: { type: [Object, Array, String], required: 
 const emit = defineEmits([])
 
 
+// Convert ANSI escape codes to HTML with colors
+function ansiToHtml(str) {
+  if (!str || typeof str !== 'string') return ''
+  
+  const ansiColors = {
+    '30': '#000', '31': '#c33', '32': '#0b6', '33': '#ca0', 
+    '34': '#36c', '35': '#c3c', '36': '#0cc', '37': '#ccc',
+    '90': '#666', '91': '#f66', '92': '#6f6', '93': '#ff6',
+    '94': '#66f', '95': '#f6f', '96': '#6ff', '97': '#fff'
+  }
+  
+  let html = escapeHtml(str)
+  let inSpan = false
+  
+  // Replace ANSI codes with HTML spans
+  html = html.replace(/\x1b\[([0-9;]+)m/g, (match, codes) => {
+    const parts = codes.split(';')
+    let result = ''
+    
+    if (inSpan) {
+      result = '</span>'
+      inSpan = false
+    }
+    
+    for (const code of parts) {
+      if (code === '0' || code === '') {
+        // Reset
+        if (inSpan) {
+          result += '</span>'
+          inSpan = false
+        }
+      } else if (ansiColors[code]) {
+        result += '<span style="color:' + ansiColors[code] + '">'
+        inSpan = true
+      } else if (code === '1') {
+        result += '<span style="font-weight:bold">'
+        inSpan = true
+      }
+    }
+    return result
+  })
+  
+  if (inSpan) html += '</span>'
+  
+  return html
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
