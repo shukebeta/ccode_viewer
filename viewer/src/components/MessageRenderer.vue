@@ -174,6 +174,27 @@ function renderTodoWrite(c) {
   return marked.parse(lines.join('\n'))
 }
 
+function renderGrepTool(c) {
+  const pattern = (c.input && c.input.pattern) || ''
+  const path = (c.input && c.input.path) || ''
+  const glob = (c.input && c.input.glob) || ''
+  const type = (c.input && c.input.type) || ''
+  const outputMode = (c.input && c.input.output_mode) || 'files_with_matches'
+  const lineNumbers = (c.input && c.input['-n']) || false
+  const caseInsensitive = (c.input && c.input['-i']) || false
+  
+  let args = []
+  if (pattern) args.push(`pattern: "${escapeHtml(pattern)}"`)
+  if (glob) args.push(`glob: "${escapeHtml(glob)}"`)
+  if (type) args.push(`type: ${escapeHtml(type)}`)
+  if (path) args.push(`path: ${escapeHtml(path)}`)
+  if (outputMode !== 'files_with_matches') args.push(`output: ${escapeHtml(outputMode)}`)
+  if (lineNumbers) args.push('-n')
+  if (caseInsensitive) args.push('-i')
+  
+  return '<div class="grep-tool"><span class="grep-icon">🔍</span> <span class="grep-args">' + args.join(', ') + '</span></div>'
+}
+
 function renderReadTool(c) {
   // Expecting structure like: { input: { path, content } } or { result: { content } }
   // Prefer to show a concise one-line summary when file path is available
