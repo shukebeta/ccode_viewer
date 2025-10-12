@@ -460,7 +460,11 @@ const handleToggleClick = (e) => {
   if (!btn) return
   const container = btn.closest('.read-container')
   if (!container) return
-  const pre = container.querySelector('.read-collapsed')
+  // Find target: try .read-collapsed first, then first child of container
+  let pre = container.querySelector('.read-collapsed')
+  if (!pre) {
+    pre = container.firstElementChild
+  }
   const isFull = btn.getAttribute('data-full') === 'true'
   if (!pre) return
   if (isFull) {
