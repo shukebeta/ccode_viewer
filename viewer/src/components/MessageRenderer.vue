@@ -506,11 +506,15 @@ onMounted(() => {
         const language = ph.getAttribute('data-lang') || ''
         const raw = ph.getAttribute('data-raw') || ''
         const mount = document.createElement('div')
-        // Preserve collapsed state if placeholder had max-height style
-        if (ph.style.maxHeight) {
-          mount.classList.add('read-collapsed')
-          mount.style.maxHeight = ph.style.maxHeight
-          mount.style.overflow = 'hidden'
+        // Preserve collapsed state if placeholder had max-height in style attribute
+        const styleAttr = ph.getAttribute('style')
+        if (styleAttr && styleAttr.includes('max-height')) {
+          const match = styleAttr.match(/max-height:\s*([^;]+)/)
+          if (match) {
+            mount.classList.add('read-collapsed')
+            mount.style.maxHeight = match[1].trim()
+            mount.style.overflow = 'hidden'
+          }
         }
         ph.parentNode?.replaceChild(mount, ph)
         try {
