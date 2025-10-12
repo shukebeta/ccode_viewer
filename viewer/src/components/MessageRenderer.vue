@@ -516,13 +516,23 @@ onMounted(() => {
 
         try {
           const app = createApp(CodeBlockComp, { language, value: raw })
-          if (mount) app.mount(mount)
+          if (mount) {
+            app.mount(mount)
 
-          // Apply collapsed styles AFTER Vue mount to prevent them from being cleared
-          if (shouldCollapse && maxHeightValue) {
-            mount.classList.add('read-collapsed')
-            mount.style.maxHeight = maxHeightValue
-            mount.style.overflow = 'hidden'
+            // Apply collapsed styles AFTER Vue mount to prevent them from being cleared
+            if (shouldCollapse && maxHeightValue) {
+              // Use nextTick to ensure Vue has fully rendered
+              nextTick(() => {
+                mount.classList.add('read-collapsed')
+                mount.style.maxHeight = maxHeightValue
+                mount.style.overflow = 'hidden'
+                console.log('[DEBUG] Applied collapsed styles:', {
+                  maxHeight: mount.style.maxHeight,
+                  overflow: mount.style.overflow,
+                  classList: Array.from(mount.classList)
+                })
+              })
+            }
           }
         } catch (e) {
           // ignore mount errors
