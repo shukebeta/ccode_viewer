@@ -138,61 +138,44 @@ function renderPlain(c) {
 function renderCode(c) {
   const code = (c && (c.code || c.text)) || ''
   const str = String(code || '')
-  // if long, wrap in collapsed container
-  const lines = str.split('\n').length
-  const mustCollapse = lines > 6 || str.length > 400
-  const escaped = escapeHtml(str)
-  if (!mustCollapse) return `<div class="__code_placeholder" data-lang="${escapeHtml('')}" data-raw="${escapeHtml(str)}"></div>`
-  const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-  const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
-  return `<div class="read-container"><div class="__code_placeholder" data-lang="${escapeHtml('')}" data-raw="${escapeHtml(str)}" style="max-height:3.6em;overflow:hidden"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
+  // Always render without collapsing - Show more feature temporarily disabled
+  return `<div class="__code_placeholder" data-lang="${escapeHtml('')}" data-raw="${escapeHtml(str)}"></div>`
 }
 
 function renderToolResult(c) {
   const v = c && (c.content || c.text) || ''
-  
+
   // Handle empty tool results
   if (!v || (typeof v === 'string' && v.trim() === '')) {
     return '<div class="empty-tool-result">(no output)</div>'
   }
-  
+
   // if looks like JSON
   try {
     const parsed = JSON.parse(v)
-    const pretty = escapeHtml(JSON.stringify(parsed, null, 2))
-    const str = pretty
-    const lines = str.split('\n').length
-    const mustCollapse = lines > 6 || str.length > 400
-  if (!mustCollapse) return `<div class="__code_placeholder" data-lang="json" data-raw="${escapeHtml(JSON.stringify(parsed, null, 2))}"></div>`
-  const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-  const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
-  return `<div class="read-container"><div class="__code_placeholder" data-lang="json" data-raw="${escapeHtml(JSON.stringify(parsed, null, 2))}" style="max-height:3.6em;overflow:hidden"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
+    return `<div class="__code_placeholder" data-lang="json" data-raw="${escapeHtml(JSON.stringify(parsed, null, 2))}"></div>`
   } catch (e) {
-    // fallback: if it looks like code prefer a code block, else render as markdown (but escape HTML first)
+    // fallback: render as text or markdown
     const str = String(v)
     const escaped = escapeHtml(str)
-    const lines = str.split('\n').length
-    const mustCollapse = lines > 6 || str.length > 400
-    const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-    const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
+
     // Check if contains ANSI codes and render with colors
     if (/\x1b\[/.test(str)) {
       const coloredHtml = ansiToHtml(str)
-      if (!mustCollapse) return '<pre class="tool-result">' + coloredHtml + '</pre>'
-      return '<div class="read-container"><pre class="tool-result read-collapsed" style="' + preStyle + '">' + coloredHtml + '</pre><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="' + btnStyle + '">Show more</button><button class="copy-code-btn" style="' + btnStyle + '">Copy</button></div></div>'
+      return '<pre class="tool-result">' + coloredHtml + '</pre>'
     }
+
     if (isCodeLike(str)) {
-  if (!mustCollapse) return `<div class="__code_placeholder" data-lang="" data-raw="${escapeHtml(str)}"></div>`
-  return `<div class="read-container"><div class="__code_placeholder" data-lang="" data-raw="${escapeHtml(str)}" style="max-height:3.6em;overflow:hidden"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
+      return `<div class="__code_placeholder" data-lang="" data-raw="${escapeHtml(str)}"></div>`
     }
+
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
-      // if markdown-like, render full markdown but still collapse if long
+      // if markdown-like, render full markdown
       const rendered = marked.parse(escaped)
-  if (!mustCollapse) return `<div class="tool-result">${rendered}</div>`
-  return `<div class="read-container"><div class="tool-result read-collapsed" style="${preStyle}">${rendered}</div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
+      return `<div class="tool-result">${rendered}</div>`
     }
-    if (!mustCollapse) return '<pre class="tool-result">' + escaped + '</pre>'
-    return '<div class="read-container"><pre class="tool-result read-collapsed" style="' + preStyle + '">' + escaped + '</pre><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="' + btnStyle + '">Show more</button><button class="copy-code-btn" style="' + btnStyle + '">Copy</button></div></div>'
+
+    return '<pre class="tool-result">' + escaped + '</pre>'
   }
 }
 
@@ -454,71 +437,8 @@ function isCodeLike(text) {
 }
 
 
-// Manage Read preview toggles: use delegated click handling to avoid adding per-instance state
-// Global flag to ensure event listeners are only registered once
-let globalListenersRegistered = false
-
-const handleToggleClick = (e) => {
-  console.log('[Toggle] Click event:', e.target)
-
-  const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
-  if (!btn) {
-    console.log('[Toggle] Not a toggle button, ignoring')
-    return
-  }
-
-  console.log('[Toggle] Button found:', btn.textContent)
-
-  const container = btn.closest('.read-container')
-  if (!container) {
-    console.log('[Toggle] No container found')
-    return
-  }
-
-  console.log('[Toggle] Container found')
-
-  // Find target: try .read-collapsed first, then first child of container
-  let pre = container.querySelector('.read-collapsed')
-  if (!pre) {
-    console.log('[Toggle] No .read-collapsed, using firstElementChild')
-    pre = container.firstElementChild
-  } else {
-    console.log('[Toggle] Found .read-collapsed')
-  }
-
-  if (!pre) {
-    console.log('[Toggle] No target element!')
-    return
-  }
-
-  console.log('[Toggle] Target element:', pre, 'Current maxHeight:', pre.style.maxHeight)
-
-  const isFull = btn.getAttribute('data-full') === 'true'
-
-  if (isFull) {
-    // collapse by restoring inline max-height
-    pre.style.maxHeight = '3.6em'
-    btn.setAttribute('data-full', 'false')
-    btn.textContent = 'Show more'
-    console.log('[Toggle] Collapsed')
-  } else {
-    // expand by removing max-height constraint
-    pre.style.maxHeight = 'none'
-    btn.setAttribute('data-full', 'true')
-    btn.textContent = 'Show less'
-    console.log('[Toggle] Expanded to maxHeight:', pre.style.maxHeight)
-  }
-}
-
+// Replace code block placeholders with CodeBlock component on mount
 onMounted(() => {
-  // Only register global event listeners once across all component instances
-  if (!globalListenersRegistered) {
-    globalListenersRegistered = true
-    document.addEventListener('click', handleToggleClick)
-    document.addEventListener('click', handleCopyClick)
-  }
-  
-  // Replace code block placeholders with CodeBlock component
   const replaceCodeBlocks = async () => {
     try {
       const mod = await import('./CodeBlock.vue')
@@ -529,33 +449,11 @@ onMounted(() => {
         const raw = ph.getAttribute('data-raw') || ''
         const mount = document.createElement('div')
 
-        // Check if placeholder needs collapsing
-        const styleAttr = ph.getAttribute('style')
-        const shouldCollapse = styleAttr && styleAttr.includes('max-height')
-        const maxHeightValue = shouldCollapse ? styleAttr.match(/max-height:\s*([^;]+)/)?.[1]?.trim() : null
-
         ph.parentNode?.replaceChild(mount, ph)
 
         try {
           const app = createApp(CodeBlockComp, { language, value: raw })
-          if (mount) {
-            app.mount(mount)
-
-            // Apply collapsed styles AFTER Vue mount to prevent them from being cleared
-            if (shouldCollapse && maxHeightValue) {
-              // Use nextTick to ensure Vue has fully rendered
-              nextTick(() => {
-                mount.classList.add('read-collapsed')
-                mount.style.maxHeight = maxHeightValue
-                mount.style.overflow = 'hidden'
-                console.log('[DEBUG] Applied collapsed styles:', {
-                  maxHeight: mount.style.maxHeight,
-                  overflow: mount.style.overflow,
-                  classList: Array.from(mount.classList)
-                })
-              })
-            }
-          }
+          if (mount) app.mount(mount)
         } catch (e) {
           // ignore mount errors
         }
@@ -597,44 +495,10 @@ onMounted(() => {
     }
   }
 
-  // Observe DOM changes to replace placeholders inserted via v-html
-  const obs = new MutationObserver(async () => {
-    await nextTick()
-    replaceCodeBlocks()
-    replaceImages()
-  })
-  obs.observe(document.body, { childList: true, subtree: true })
-  
+  // Call once on mount to replace initial placeholders
   replaceCodeBlocks()
   replaceImages()
-
-  document.addEventListener('click', handleCopyClick)
 })
-
-const handleCopyClick = (e) => {
-  const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
-  if (!btn) return
-  const container = btn.closest('.read-container') || btn.closest('.message-renderer')
-  if (!container) return
-  // find nearest code or pre element
-  const codeEl = container.querySelector('code') || container.querySelector('pre')
-  if (!codeEl) return
-  const text = codeEl.textContent || codeEl.innerText || ''
-  // copy to clipboard with fallback
-  (async () => {
-    try { await navigator.clipboard.writeText(text) } catch (err) {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    }
-  })()
-  const old = btn.textContent
-  btn.textContent = 'Copied'
-  setTimeout(() => { btn.textContent = old }, 1500)
-}
 
 const isTodoWrite = computed(() => {
   const c = props.content
