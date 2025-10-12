@@ -138,9 +138,6 @@ function renderToolResult(c) {
       const rendered = marked.parse(escaped)
   if (!mustCollapse) return `<div class="tool-result">${rendered}</div>`
   return `<div class="read-container"><div class="tool-result read-collapsed" style="${preStyle}">${rendered}</div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
-  const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-  const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
-  return `<div class="read-container"><pre class="tool-result read-collapsed" style="${preStyle}">${escaped}</pre><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
   }
 }
 
