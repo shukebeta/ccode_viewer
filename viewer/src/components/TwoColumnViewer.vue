@@ -396,6 +396,19 @@ export default {
     if (c.type === 'thinking') {
       return c.thinking || ''
     }
+        // Grep tool: extract readable search summary
+        if (c.name === 'Grep' || c.toolName === 'Grep' || (c.message && c.message.name === 'Grep')) {
+          const pattern = (c.input && c.input.pattern) || ''
+          const path = (c.input && c.input.path) || ''
+          const glob = (c.input && c.input.glob) || ''
+          const type = (c.input && c.input.type) || ''
+          let parts = []
+          if (pattern) parts.push('pattern: "' + pattern + '"')
+          if (glob) parts.push('glob: "' + glob + '"')
+          if (type) parts.push('type: ' + type)
+          if (path) parts.push('path: ' + path)
+          return parts.join(', ')
+        }
         if (c.name === 'ExitPlanMode' || c.toolName === 'ExitPlanMode' || (c.message && c.message.name === 'ExitPlanMode')) {
           return (c.input && c.input.plan) || c.plan || ''
         }
