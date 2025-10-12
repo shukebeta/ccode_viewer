@@ -9,7 +9,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
 
 // Configure marked to disable deprecated mangle option
@@ -455,27 +455,29 @@ function isCodeLike(text) {
 
 
 // Manage Read preview toggles: use delegated click handling to avoid adding per-instance state
+const handleToggleClick = (e) => {
+  const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
+  if (!btn) return
+  const container = btn.closest('.read-container')
+  if (!container) return
+  const pre = container.querySelector('.read-collapsed')
+  const isFull = btn.getAttribute('data-full') === 'true'
+  if (!pre) return
+  if (isFull) {
+    // collapse by restoring inline max-height
+    pre.style.maxHeight = '3.6em'
+    btn.setAttribute('data-full', 'false')
+    btn.textContent = 'Show more'
+  } else {
+    // expand by removing max-height constraint
+    pre.style.maxHeight = 'none'
+    btn.setAttribute('data-full', 'true')
+    btn.textContent = 'Show less'
+  }
+}
+
 onMounted(() => {
-  document.addEventListener('click', (e) => {
-    const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
-    if (!btn) return
-    const container = btn.closest('.read-container')
-    if (!container) return
-    const pre = container.querySelector('.read-collapsed')
-    const isFull = btn.getAttribute('data-full') === 'true'
-    if (!pre) return
-    if (isFull) {
-      // collapse by restoring inline max-height
-      pre.style.maxHeight = '3.6em'
-      btn.setAttribute('data-full', 'false')
-      btn.textContent = 'Show more'
-    } else {
-      // expand by removing max-height constraint
-      pre.style.maxHeight = 'none'
-      btn.setAttribute('data-full', 'true')
-      btn.textContent = 'Show less'
-    }
-  })
+  document.addEventListener('click', handleToggleClick)
   
   // Replace code block placeholders with CodeBlock component
   const replaceCodeBlocks = async () => {
@@ -548,31 +550,38 @@ onMounted(() => {
   
   replaceCodeBlocks()
   replaceImages()
-  
-  document.addEventListener('click', (e) => {
-    const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
-    if (!btn) return
-    const container = btn.closest('.read-container') || btn.closest('.message-renderer')
-    if (!container) return
-    // find nearest code or pre element
-    const codeEl = container.querySelector('code') || container.querySelector('pre')
-    if (!codeEl) return
-    const text = codeEl.textContent || codeEl.innerText || ''
-    // copy to clipboard with fallback
-    (async () => {
-      try { await navigator.clipboard.writeText(text) } catch (err) {
-        const ta = document.createElement('textarea')
-        ta.value = text
-        document.body.appendChild(ta)
-        ta.select()
-        document.execCommand('copy')
-        document.body.removeChild(ta)
-      }
-    })()
-    const old = btn.textContent
-    btn.textContent = 'Copied'
-    setTimeout(() => { btn.textContent = old }, 1500)
-  })
+
+  document.addEventListener('click', handleCopyClick)
+})
+
+const handleCopyClick = (e) => {
+  const btn = e.target && (e.target.closest && e.target.closest('.copy-code-btn'))
+  if (!btn) return
+  const container = btn.closest('.read-container') || btn.closest('.message-renderer')
+  if (!container) return
+  // find nearest code or pre element
+  const codeEl = container.querySelector('code') || container.querySelector('pre')
+  if (!codeEl) return
+  const text = codeEl.textContent || codeEl.innerText || ''
+  // copy to clipboard with fallback
+  (async () => {
+    try { await navigator.clipboard.writeText(text) } catch (err) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+  })()
+  const old = btn.textContent
+  btn.textContent = 'Copied'
+  setTimeout(() => { btn.textContent = old }, 1500)
+}
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleToggleClick)
+  document.removeEventListener('click', handleCopyClick)
 })
 
 const isTodoWrite = computed(() => {
