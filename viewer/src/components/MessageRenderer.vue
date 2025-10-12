@@ -138,6 +138,7 @@ function renderToolResult(c) {
       const rendered = marked.parse(escaped)
   if (!mustCollapse) return `<div class="tool-result">${rendered}</div>`
   return `<div class="read-container"><div class="tool-result read-collapsed" style="${preStyle}">${rendered}</div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
+    }
     if (!mustCollapse) return '<pre class="tool-result">' + escaped + '</pre>'
     return '<div class="read-container"><pre class="tool-result read-collapsed" style="' + preStyle + '">' + escaped + '</pre><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="' + btnStyle + '">Show more</button><button class="copy-code-btn" style="' + btnStyle + '">Copy</button></div></div>'
   }
