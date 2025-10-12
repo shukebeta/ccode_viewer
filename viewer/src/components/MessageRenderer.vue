@@ -131,19 +131,13 @@ function renderToolResult(c) {
     }
     if (isCodeLike(str)) {
   if (!mustCollapse) return `<div class="__code_placeholder" data-lang="" data-raw="${escapeHtml(str)}"></div>`
-  const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-  const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
   return `<div class="read-container"><div class="__code_placeholder" data-lang="" data-raw="${escapeHtml(str)}" style="max-height:3.6em;overflow:hidden"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
     }
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
       // if markdown-like, render full markdown but still collapse if long
       const rendered = marked.parse(escaped)
   if (!mustCollapse) return `<div class="tool-result">${rendered}</div>`
-  const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-  const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
   return `<div class="read-container"><div class="tool-result read-collapsed" style="${preStyle}">${rendered}</div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
-    }
-  if (!mustCollapse) return `<pre class="tool-result">${escaped}</pre>`
   const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
   const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
   return `<div class="read-container"><pre class="tool-result read-collapsed" style="${preStyle}">${escaped}</pre><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
