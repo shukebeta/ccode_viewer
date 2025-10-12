@@ -19,50 +19,102 @@ const props = defineProps({ content: { type: [Object, Array, String], required: 
 const emit = defineEmits([])
 
 
-// Convert ANSI escape codes to HTML with colors
+// Convert ANSI escape codes to HTML with colors, backgrounds, and styles
 function ansiToHtml(str) {
   if (!str || typeof str !== 'string') return ''
-  
-  const ansiColors = {
-    '30': '#000', '31': '#c33', '32': '#0b6', '33': '#ca0', 
+
+  const fgColors = {
+    '30': '#000', '31': '#c33', '32': '#0b6', '33': '#ca0',
     '34': '#36c', '35': '#c3c', '36': '#0cc', '37': '#ccc',
     '90': '#666', '91': '#f66', '92': '#6f6', '93': '#ff6',
     '94': '#66f', '95': '#f6f', '96': '#6ff', '97': '#fff'
   }
-  
+
+  const bgColors = {
+    '40': '#000', '41': '#c33', '42': '#0b6', '43': '#ca0',
+    '44': '#36c', '45': '#c3c', '46': '#0cc', '47': '#ccc',
+    '100': '#666', '101': '#f66', '102': '#6f6', '103': '#ff6',
+    '104': '#66f', '105': '#f6f', '106': '#6ff', '107': '#fff'
+  }
+
   let html = escapeHtml(str)
+  let currentStyles = {
+    color: null,
+    bgColor: null,
+    bold: false,
+    dim: false,
+    italic: false,
+    underline: false,
+    strikethrough: false
+  }
   let inSpan = false
-  
-  // Replace ANSI codes with HTML spans
+
+  function buildSpan(styles) {
+    const parts = []
+    if (styles.color) parts.push('color:' + styles.color)
+    if (styles.bgColor) parts.push('background-color:' + styles.bgColor)
+    if (styles.bold) parts.push('font-weight:bold')
+    if (styles.dim) parts.push('opacity:0.6')
+    if (styles.italic) parts.push('font-style:italic')
+    if (styles.underline) parts.push('text-decoration:underline')
+    if (styles.strikethrough) parts.push('text-decoration:line-through')
+    return parts.length > 0 ? '<span style="' + parts.join(';') + '">' : ''
+  }
+
+  function hasAnyStyle(styles) {
+    return styles.color || styles.bgColor || styles.bold || styles.dim ||
+           styles.italic || styles.underline || styles.strikethrough
+  }
+
   html = html.replace(/\x1b\[([0-9;]+)m/g, (match, codes) => {
     const parts = codes.split(';')
     let result = ''
-    
-    if (inSpan) {
-      result = '</span>'
-      inSpan = false
-    }
-    
+
     for (const code of parts) {
       if (code === '0' || code === '') {
-        // Reset
-        if (inSpan) {
-          result += '</span>'
-          inSpan = false
-        }
-      } else if (ansiColors[code]) {
-        result += '<span style="color:' + ansiColors[code] + '">'
-        inSpan = true
+        // Reset all
+        currentStyles = { color: null, bgColor: null, bold: false, dim: false, italic: false, underline: false, strikethrough: false }
+      } else if (fgColors[code]) {
+        currentStyles.color = fgColors[code]
+      } else if (bgColors[code]) {
+        currentStyles.bgColor = bgColors[code]
       } else if (code === '1') {
-        result += '<span style="font-weight:bold">'
-        inSpan = true
+        currentStyles.bold = true
+      } else if (code === '2') {
+        currentStyles.dim = true
+      } else if (code === '3') {
+        currentStyles.italic = true
+      } else if (code === '4') {
+        currentStyles.underline = true
+      } else if (code === '9') {
+        currentStyles.strikethrough = true
+      } else if (code === '22') {
+        currentStyles.bold = false
+        currentStyles.dim = false
+      } else if (code === '23') {
+        currentStyles.italic = false
+      } else if (code === '24') {
+        currentStyles.underline = false
+      } else if (code === '29') {
+        currentStyles.strikethrough = false
       }
     }
+
+    if (inSpan) {
+      result += '</span>'
+      inSpan = false
+    }
+
+    if (hasAnyStyle(currentStyles)) {
+      result += buildSpan(currentStyles)
+      inSpan = true
+    }
+
     return result
   })
-  
+
   if (inSpan) html += '</span>'
-  
+
   return html
 }
 
