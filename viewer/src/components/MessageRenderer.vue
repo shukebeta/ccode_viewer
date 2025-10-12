@@ -350,25 +350,6 @@ const rawJson = computed(() => {
   return null
 })
 
-async function copyRaw() {
-  const text = rawJson.value
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-  } catch (e) {
-    // fallback
-    const ta = document.createElement('textarea')
-    ta.value = text
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
-  }
-  copied.value = true
-  setTimeout(() => { copied.value = false }, 1500)
-}
-
-const copied = ref(false)
 
 // Manage Read preview toggles: use delegated click handling to avoid adding per-instance state
 onMounted(() => {
