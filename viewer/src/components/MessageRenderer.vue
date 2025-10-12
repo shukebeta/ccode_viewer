@@ -512,8 +512,8 @@ onMounted(() => {
           const match = styleAttr.match(/max-height:\s*([^;]+)/)
           if (match) {
             mount.classList.add('read-collapsed')
-            mount.style.maxHeight = match[1].trim()
-            mount.style.overflow = 'hidden'
+            // Set styles via setAttribute to ensure they persist
+            mount.setAttribute('style', `max-height: ${match[1].trim()}; overflow: hidden;`)
           }
         }
         ph.parentNode?.replaceChild(mount, ph)
