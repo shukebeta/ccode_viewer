@@ -324,32 +324,6 @@ function isCodeLike(text) {
   return false
 }
 
-// Raw JSON for copy button: either the object or JSON contained in text
-// For ExitPlanMode, return the plan text instead of the full JSON
-const rawJson = computed(() => {
-  const c = props.content
-  if (!c) return null
-  
-  // Special case for ExitPlanMode: copy the plan text
-  
-  // Special case for thinking block: copy the thinking text
-  if (c.type === 'thinking') {
-    return c.thinking || null
-  }
-  if (c.name === 'ExitPlanMode' || c.toolName === 'ExitPlanMode' || (c.message && c.message.name === 'ExitPlanMode')) {
-    return (c.input && c.input.plan) || (c.plan) || null
-  }
-  
-  if (typeof c === 'object') {
-    try { return JSON.stringify(c, null, 2) } catch { return null }
-  }
-  // if string and parsable JSON
-  if (typeof c === 'string') {
-    try { const p = JSON.parse(c); return JSON.stringify(p, null, 2) } catch { return null }
-  }
-  return null
-})
-
 
 // Manage Read preview toggles: use delegated click handling to avoid adding per-instance state
 onMounted(() => {
