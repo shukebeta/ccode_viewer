@@ -506,20 +506,24 @@ onMounted(() => {
         const language = ph.getAttribute('data-lang') || ''
         const raw = ph.getAttribute('data-raw') || ''
         const mount = document.createElement('div')
-        // Preserve collapsed state if placeholder had max-height in style attribute
+
+        // Check if placeholder needs collapsing
         const styleAttr = ph.getAttribute('style')
-        if (styleAttr && styleAttr.includes('max-height')) {
-          const match = styleAttr.match(/max-height:\s*([^;]+)/)
-          if (match) {
-            mount.classList.add('read-collapsed')
-            // Set styles via setAttribute to ensure they persist
-            mount.setAttribute('style', `max-height: ${match[1].trim()}; overflow: hidden;`)
-          }
-        }
+        const shouldCollapse = styleAttr && styleAttr.includes('max-height')
+        const maxHeightValue = shouldCollapse ? styleAttr.match(/max-height:\s*([^;]+)/)?.[1]?.trim() : null
+
         ph.parentNode?.replaceChild(mount, ph)
+
         try {
           const app = createApp(CodeBlockComp, { language, value: raw })
           if (mount) app.mount(mount)
+
+          // Apply collapsed styles AFTER Vue mount to prevent them from being cleared
+          if (shouldCollapse && maxHeightValue) {
+            mount.classList.add('read-collapsed')
+            mount.style.maxHeight = maxHeightValue
+            mount.style.overflow = 'hidden'
+          }
         } catch (e) {
           // ignore mount errors
         }
