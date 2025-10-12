@@ -478,13 +478,11 @@ const handleToggleClick = (e) => {
   if (isFull) {
     // collapse by restoring inline max-height
     pre.style.maxHeight = '3.6em'
-    pre.style.overflow = 'hidden'
     btn.setAttribute('data-full', 'false')
     btn.textContent = 'Show more'
   } else {
     // expand by removing max-height constraint
     pre.style.maxHeight = 'none'
-    pre.style.overflow = 'visible'
     btn.setAttribute('data-full', 'true')
     btn.textContent = 'Show less'
   }
