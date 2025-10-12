@@ -528,12 +528,6 @@ const systemNote = computed(() => {
 .command-msg { color: #666; font-weight: 600 }
 .read-summary { font-size: 13px; color: #111; background: #f6f7fb; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(2,6,23,0.04); }
 
-/* copy button */
-.copy-json { position: absolute; left: 6px; top: 6px; background: transparent; border: none; padding: 4px 6px; cursor: pointer; font-size: 12px; border-radius: 4px }
-.copy-json:hover { background: rgba(0,0,0,0.04) }
-
-.copy-json .copied-label { margin-left: 6px; font-size: 11px; color: #0b6; background: rgba(11,102,51,0.08); padding: 2px 6px; border-radius: 4px }
-
 /* ensure headings inside message renderer are not too prominent */
 .message-renderer { position: relative }
 
