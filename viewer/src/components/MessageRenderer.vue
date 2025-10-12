@@ -9,7 +9,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, nextTick, createApp, h } from 'vue'
+import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
 
 // Configure marked to disable deprecated mangle option
@@ -455,33 +455,48 @@ function isCodeLike(text) {
 
 
 // Manage Read preview toggles: use delegated click handling to avoid adding per-instance state
+// Global flag to ensure event listeners are only registered once
+let globalListenersRegistered = false
+
 const handleToggleClick = (e) => {
   const btn = e.target && (e.target.closest && e.target.closest('.read-toggle'))
   if (!btn) return
+
   const container = btn.closest('.read-container')
   if (!container) return
+
   // Find target: try .read-collapsed first, then first child of container
   let pre = container.querySelector('.read-collapsed')
   if (!pre) {
     pre = container.firstElementChild
   }
-  const isFull = btn.getAttribute('data-full') === 'true'
+
   if (!pre) return
+
+  const isFull = btn.getAttribute('data-full') === 'true'
+
   if (isFull) {
     // collapse by restoring inline max-height
     pre.style.maxHeight = '3.6em'
+    pre.style.overflow = 'hidden'
     btn.setAttribute('data-full', 'false')
     btn.textContent = 'Show more'
   } else {
     // expand by removing max-height constraint
     pre.style.maxHeight = 'none'
+    pre.style.overflow = 'visible'
     btn.setAttribute('data-full', 'true')
     btn.textContent = 'Show less'
   }
 }
 
 onMounted(() => {
-  document.addEventListener('click', handleToggleClick)
+  // Only register global event listeners once across all component instances
+  if (!globalListenersRegistered) {
+    globalListenersRegistered = true
+    document.addEventListener('click', handleToggleClick)
+    document.addEventListener('click', handleCopyClick)
+  }
   
   // Replace code block placeholders with CodeBlock component
   const replaceCodeBlocks = async () => {
@@ -582,11 +597,6 @@ const handleCopyClick = (e) => {
   btn.textContent = 'Copied'
   setTimeout(() => { btn.textContent = old }, 1500)
 }
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleToggleClick)
-  document.removeEventListener('click', handleCopyClick)
-})
 
 const isTodoWrite = computed(() => {
   const c = props.content
