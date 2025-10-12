@@ -116,6 +116,12 @@ function renderToolResult(c) {
   const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
   return `<div class="read-container"><div class="__code_placeholder" data-lang="json" data-raw="${escapeHtml(JSON.stringify(parsed, null, 2))}" style="max-height:3.6em;overflow:hidden"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button><button class="copy-code-btn" style="${btnStyle}">Copy</button></div></div>`
   } catch (e) {
+    // Check if contains ANSI codes and render with colors
+    if (/\x1b\[/.test(str)) {
+      const coloredHtml = ansiToHtml(str)
+      if (!mustCollapse) return '<pre class="tool-result">' + coloredHtml + '</pre>'
+      return '<div class="read-container"><pre class="tool-result read-collapsed" style="' + preStyle + '">' + coloredHtml + '</pre><div style="display:flex;gap:8px;margin-top:6px"><button class="read-toggle" data-full="false" style="' + btnStyle + '">Show more</button><button class="copy-code-btn" style="' + btnStyle + '">Copy</button></div></div>'
+    }
     // fallback: if it looks like code prefer a code block, else render as markdown (but escape HTML first)
     const str = String(v)
     const escaped = escapeHtml(str)
