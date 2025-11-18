@@ -211,36 +211,30 @@ function renderMarkdown(c) {
 // Shared custom markdown renderer with inline styles (for ExitPlanMode and thinking blocks)
 function createCustomMarkdownRenderer() {
   const renderer = new marked.Renderer()
-  
+    
   renderer.heading = (text, level) => {
     const sizes = ['1.5em', '1.3em', '1.1em']
     const size = sizes[level - 1] || '1em'
-    return `<h${level} style="margin:0.5rem 0;font-size:${size};font-weight:600">${text}</h${level}>\n`
+    return `<h${level} style="margin:0.3rem 0;font-size:${size};font-weight:600">${text.trim()}</h${level}>\n`
   }
-  
+
   renderer.paragraph = (text) => {
-    return `<p style="margin:0.3rem 0;line-height:1.5">${text}</p>\n`
+    return `<p style="margin:0.1rem 0;line-height:1.25">${text.trim()}</p>\n`
   }
-  
+
   renderer.list = (body, ordered) => {
     const tag = ordered ? 'ol' : 'ul'
-    return `<${tag} style="margin:0.3rem 0;padding-left:1.5rem">${body}</${tag}>\n`
+    return `<${tag} style="margin:0.1rem 0;padding-left:1.2rem;list-style-position:outside;list-style-type:${ordered ? 'decimal' : 'disc'}">${body.trim()}</${tag}>\n`
   }
-  
-  renderer.listitem = (text) => {
-    return `<li style="margin:0.2rem 0">${text}</li>\n`
-  }
-  
+
+  renderer.listitem = (text) => `<li style="margin:0;padding:0;line-height:1.25">${text.trim()}</li>`
+
   renderer.hr = () => {
-    return `<hr style="margin:0.5rem 0;border:none;border-top:1px solid rgba(0,0,0,0.1)">\n`
+    return `<hr style="margin:0.3rem 0;border:none;border-top:1px solid rgba(0,0,0,0.1)">\n`
   }
-  
-  renderer.codespan = (code) => {
-    return `<code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em">${code}</code>`
-  }
-  
+
   renderer.code = (code, language) => {
-    return `<pre style="margin:0.4rem 0;background:rgba(0,0,0,0.05);padding:8px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em">${code}</code></pre>\n`
+    return `<pre style="margin:0.1rem 0;background:rgba(0,0,0,0.05);padding:6px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em;line-height:1.3">${code}</code></pre>\n`
   }
   
   return renderer
