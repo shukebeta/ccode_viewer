@@ -291,6 +291,9 @@ async function getSessions(projectName) {
           } catch (e) {}
         }
 
+        // Detect if this is an agent/subagent session
+        const isAgent = file.startsWith('agent-')
+
         sessions.push({
           id: sessionId,
           projectPath,
@@ -300,17 +303,21 @@ async function getSessions(projectName) {
           mtime: stats.mtime,
           messageCount,
           totalCost,
-          preview: recentMessages.join('\n').substring(0, 200)
+          preview: recentMessages.join('\n').substring(0, 200),
+          isAgent
         })
       }
     }
 
-    sessions.sort((a, b) => {
+    // Filter out sessions with less than 3 messages (warmup/empty sessions)
+    const filtered = sessions.filter(s => s.messageCount >= 3)
+
+    filtered.sort((a, b) => {
       if (!a.mtime || !b.mtime) return 0
       return b.mtime.getTime() - a.mtime.getTime()
     })
 
-    return sessions
+    return filtered
   } catch (e) {
     return []
   }

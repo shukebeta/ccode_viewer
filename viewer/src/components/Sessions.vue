@@ -7,7 +7,11 @@
         <div class="session-row">
           <button
             class="session-card"
-            :class="{ active: s.filePath === currentSessionFile }"
+            :class="{
+              active: s.filePath === currentSessionFile,
+              'main-session': !s.isAgent,
+              'agent-session': s.isAgent
+            }"
             @click="$emit('select-session', s.filePath, s)"
           >
             <div class="session-time">{{ formatTime(s.lastTime || s.startTime) }} <span class="muted">({{ s.messageCount }})</span></div>

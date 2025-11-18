@@ -28,8 +28,28 @@ h1 { font-size: 20px }
 .session-row:hover .delete-btn {
   opacity: 1;
 }
-.delete-btn:hover { 
+.delete-btn:hover {
   background: #c82333;
+}
+
+/* Main session vs agent session styles */
+.session-card.main-session {
+  border-left: 3px solid #3b82f6;
+  font-weight: 500;
+}
+
+.session-card.agent-session {
+  opacity: 0.7;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.session-card.agent-session .session-time {
+  font-size: 12px;
+}
+
+.session-card.agent-session .session-preview {
+  font-size: 11px;
 }
 
 /* Bash tool and empty tool result styles */

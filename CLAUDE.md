@@ -1,5 +1,63 @@
 # Claude Code Viewer - Project-Specific Development Guidelines
 
+A web-based viewer for browsing and searching Claude Code session history.
+
+## Project Structure
+
+```
+ccode_viewer/
+├── server/                    # Backend (Express.js)
+│   ├── server.js              # API endpoints
+│   ├── fsHelpers.js           # Session file operations (core logic)
+│   └── __tests__/             # Jest tests
+├── viewer/                    # Frontend (Vue 3 + Vite)
+│   └── src/
+│       ├── App.vue            # Main app container
+│       ├── main.js            # Vue app entry
+│       ├── styles.css         # Global styles (IMPORTANT!)
+│       └── components/
+│           ├── Projects.vue       # Project list sidebar
+│           ├── Sessions.vue       # Session list for selected project
+│           ├── TwoColumnViewer.vue # Main message viewer
+│           ├── MessageRenderer.vue # Renders individual messages
+│           ├── CodeBlock.vue      # Syntax-highlighted code blocks
+│           ├── SearchBox.vue      # Search input component
+│           └── SearchResults.vue  # Search results display
+└── package.json               # Root scripts for dev/build
+```
+
+## Key Concepts
+
+### Session Types
+- **Main sessions**: UUID-named files (e.g., `1e6d31a2-8651-42ab-8f2f-d26321d4ea29.jsonl`)
+- **Agent sessions**: Subagent task files (e.g., `agent-1204ee53.jsonl`)
+- Sessions with < 3 messages are filtered out (warmup/empty sessions)
+
+### Session Data Location
+- Windows: `C:\Users\<user>\.claude\projects\`
+- Each project folder contains `.jsonl` session files
+- Project folder names use `--` as path separators (e.g., `D--git-myproject`)
+
+## Core Backend Functions (fsHelpers.js)
+
+### `getSessions(projectName)` (line ~234)
+- Reads all `.jsonl` files in project directory
+- Returns session metadata: id, filePath, startTime, messageCount, preview, isAgent
+- Filters out sessions with messageCount < 3
+- Sorted by modification time (newest first)
+
+### `readSessionFile(filePath)` (line ~323)
+- Parses JSONL file into array of message objects
+
+### `searchInProject(projectId, keyword)` (line ~506)
+- Full-text search across all sessions in a project
+- Returns matching user messages with assistant replies
+- Limited to 100 sessions, 200 results
+
+### `mapSessionMessages(filePath)` (line ~400+)
+- Maps user messages to their assistant replies
+- Used by search and viewer components
+
 ## UI Components - Element Plus
 
 **CRITICAL: Never use native browser dialogs**
@@ -94,8 +152,50 @@ Follow existing patterns in `server.js`:
 - Always validate required query params
 - Return JSON with `{ error: 'message' }` for errors
 
-## Ed Editor Tips for This Project
+## Development Commands
 
-- Vue SFCs have three sections: `<template>`, `<script>`, `<style scoped>`
-- When adding to methods object, remember the comma separator pattern
-- Use `58s/}$/},/` to change last method's closing brace to include comma before adding new methods
+```bash
+# Development (runs both backend and frontend)
+npm run dev
+
+# Build frontend for production
+npm run build
+
+# Run tests
+npm test
+```
+
+## API Endpoints (server.js)
+
+- `GET /api/projects` - List all projects
+- `GET /api/sessions?project=<id>` - List sessions for a project
+- `GET /api/session?file=<path>` - Read session messages
+- `DELETE /api/session?file=<path>` - Delete a session file
+- `GET /api/search?project=<id>&q=<keyword>` - Search within project
+
+## Session Object Shape
+
+```javascript
+{
+  id: string,           // Session ID (from filename or first line)
+  projectPath: string,  // Full path to project directory
+  filePath: string,     // Full path to .jsonl file
+  startTime: string,    // ISO 8601 timestamp
+  endTime: string,      // ISO 8601 timestamp
+  mtime: Date,          // File modification time
+  messageCount: number, // Total user + assistant messages
+  totalCost: number,    // Sum of costUSD fields
+  preview: string,      // First ~200 chars of recent messages
+  isAgent: boolean      // true if filename starts with "agent-"
+}
+```
+
+## Common Patterns
+
+### Adding new session metadata
+1. Add field extraction in `getSessions()` loop (fsHelpers.js ~245-308)
+2. Include in session object (fsHelpers.js ~297-308)
+3. Use in frontend component (Sessions.vue)
+
+### Adding new styles for dynamic elements
+Always add to `/viewer/src/styles.css`, NOT in `<style scoped>`
