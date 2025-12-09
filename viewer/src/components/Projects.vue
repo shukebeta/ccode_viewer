@@ -4,9 +4,16 @@
     <ul class="project-list">
       <li v-for="p in projects" :key="p.id">
         <div :class="['project-card', { active: selected && selected.name === p.name }]" @click="$emit('select-project', p)">
-          <div class="project-title">{{ displayName(p) }}</div>
+          <div class="project-title">
+            {{ displayName(p) }}
+            <span v-if="p.sources && p.sources.length > 1" class="source-badges">
+              <span v-for="src in p.sources" :key="src" :class="['source-badge', src]">
+                {{ sourceLabel(src) }}
+              </span>
+            </span>
+          </div>
           <div class="project-path">{{ displayPath(p) }}</div>
-          <div class="project-meta">{{ p.sessionCount }} sessions</div>
+          <div class="project-meta">{{ formatSessionCount(p) }}</div>
         </div>
       </li>
     </ul>
@@ -52,6 +59,24 @@ export default {
       if (p.name && (p.name.includes('/') || p.name.includes('\\'))) return p.name.replace(/\\/g, '/')
       if (p.path) return p.path.replace(/\\/g, '/')
       return p.name
+    },
+    sourceLabel(src) {
+      const labels = {
+        claudecode: 'Claude',
+        gcopilot: 'Copilot'
+      }
+      return labels[src] || src
+    },
+    formatSessionCount(p) {
+      // Handle new format: { claudecode: 5, gcopilot: 10 }
+      if (p.sessionCount && typeof p.sessionCount === 'object') {
+        const parts = []
+        if (p.sessionCount.claudecode) parts.push(`${p.sessionCount.claudecode} Claude`)
+        if (p.sessionCount.gcopilot) parts.push(`${p.sessionCount.gcopilot} Copilot`)
+        return parts.join(', ')
+      }
+      // Fallback for old format: sessionCount is a number
+      return `${p.sessionCount || 0} sessions`
     }
   }
 }

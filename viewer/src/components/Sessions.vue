@@ -14,7 +14,13 @@
             }"
             @click="$emit('select-session', s.filePath, s)"
           >
-            <div class="session-time">{{ formatTime(s.lastTime || s.startTime) }} <span class="muted">({{ s.messageCount }})</span></div>
+            <div class="session-time">
+              {{ formatTime(s.lastTime || s.startTime) }}
+              <span class="muted">({{ s.messageCount }})</span>
+              <span v-if="s.source === 'gcopilot'" :class="['source-badge', s.source]">
+                {{ sourceLabel(s.source) }}
+              </span>
+            </div>
             <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
           </button>
           <button v-if="!isToday(s.lastTime || s.startTime)" class="delete-btn" @click="confirmDelete(s)" title="Delete session">×</button>
@@ -114,6 +120,13 @@ export default {
       } catch (e) {
         ElMessage.error('Failed to delete session: ' + e.message)
       }
+    },
+    sourceLabel(src) {
+      const labels = {
+        claudecode: 'Claude',
+        gcopilot: 'Copilot'
+      }
+      return labels[src] || src
     }
   },
   computed: {

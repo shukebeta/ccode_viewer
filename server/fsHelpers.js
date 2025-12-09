@@ -3,6 +3,7 @@ const path = require('path')
 const os = require('os')
 
 const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
+const COPILOT_SESSION_PATH = path.join(os.homedir(), '.copilot', 'session-state')
 
 // Local copy of resolveProjectPath (ported from electron/pathResolver.ts)
 const { sep: PATH_SEP } = path
@@ -194,15 +195,128 @@ function fsExistsSync(p) {
   try { return require('fs').existsSync(p) } catch { return false }
 }
 
+/**
+ * Normalize a file system path to Claude Code project ID format
+ * Examples:
+ *   D:\git\xemt-core\DFX -> D--git-xemt-core-dfx
+ *   /home/user/projects/my-app -> -home-user-projects-my-app
+ */
+function normalizePathToProjectId(filePath) {
+  // Normalize to forward slashes
+  const normalized = filePath.replace(/\\/g, '/')
+
+  // Handle Windows paths (C:/... or D:/...)
+  const windowsDriveMatch = normalized.match(/^([A-Za-z]):\/(.+)$/)
+  if (windowsDriveMatch) {
+    const [, drive, pathPart] = windowsDriveMatch
+    return `${drive.toUpperCase()}--${pathPart.toLowerCase().replace(/\//g, '-')}`
+  }
+
+  // Handle Unix paths (/home/...)
+  if (normalized.startsWith('/')) {
+    return `-${normalized.substring(1).toLowerCase().replace(/\//g, '-')}`
+  }
+
+  // Fallback: just replace slashes with dashes
+  return normalized.toLowerCase().replace(/\//g, '-')
+}
+
+/**
+ * Extract project path from a Copilot session file
+ * Returns the first workspace path found in view tool calls
+ */
+async function extractCopilotProjectPath(sessionFilePath) {
+  try {
+    const content = await fs.readFile(sessionFilePath, 'utf8')
+    const lines = content.trim().split('\n')
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line)
+
+        // Look for view tool calls which contain workspace paths
+        if (data.type === 'tool.execution_start' &&
+            data.data?.toolName === 'view' &&
+            data.data?.arguments?.path) {
+
+          const viewPath = data.data.arguments.path
+
+          // Extract project root - simple heuristic: take up to 4 path segments
+          // D:\git\xemt-core\DFX\subdir -> D:\git\xemt-core\DFX
+          const parts = viewPath.split(/[\/\\]/)
+          if (parts.length > 4) {
+            return parts.slice(0, 4).join(path.sep)
+          }
+
+          return viewPath
+        }
+      } catch (e) {
+        // Skip invalid JSON lines
+      }
+    }
+
+    return null
+  } catch (e) {
+    return null
+  }
+}
+
+/**
+ * Get all projects from Copilot sessions
+ * Returns a map of projectId -> { sessions: [...], lastUpdated: Date }
+ */
+async function getCopilotProjects() {
+  const projectMap = new Map()
+
+  try {
+    const files = await fs.readdir(COPILOT_SESSION_PATH)
+
+    for (const file of files) {
+      if (!file.endsWith('.jsonl')) continue
+
+      const filePath = path.join(COPILOT_SESSION_PATH, file)
+      const projectPath = await extractCopilotProjectPath(filePath)
+
+      if (!projectPath) continue
+
+      const projectId = normalizePathToProjectId(projectPath)
+      const stats = await fs.stat(filePath)
+
+      if (!projectMap.has(projectId)) {
+        projectMap.set(projectId, {
+          projectPath,
+          sessions: [],
+          lastUpdated: stats.mtime
+        })
+      }
+
+      const project = projectMap.get(projectId)
+      project.sessions.push(file)
+
+      if (stats.mtime > project.lastUpdated) {
+        project.lastUpdated = stats.mtime
+      }
+    }
+  } catch (e) {
+    // Copilot directory doesn't exist or can't be read
+  }
+
+  return projectMap
+}
+
 async function getProjects() {
+  // Use a map to merge projects from multiple sources
+  const projectMap = new Map()
+
+  // 1. Get Claude Code projects
   try {
     const entries = await fs.readdir(CLAUDE_PROJECTS_PATH, { withFileTypes: true })
-    const projects = []
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const projectPath = path.join(CLAUDE_PROJECTS_PATH, entry.name)
         const sessions = await fs.readdir(projectPath)
         const sessionFiles = sessions.filter(f => f.endsWith('.jsonl'))
+
         // Determine most-recent session mtime for lastUpdated
         let lastUpdated = null
         for (const f of sessionFiles) {
@@ -214,31 +328,186 @@ async function getProjects() {
           }
         }
 
-        // Use resolved project path as display name (matches electron resolver)
+        // Use resolved project path as display name
         const displayName = resolveProjectPath(entry.name)
-        projects.push({
+
+        projectMap.set(entry.name, {
           id: entry.name,
           name: displayName,
           path: projectPath,
-          sessionCount: sessionFiles.length,
+          sources: ['claudecode'],
+          sessionCount: {
+            claudecode: sessionFiles.length
+          },
           lastUpdated: lastUpdated ? lastUpdated.toISOString() : undefined
         })
       }
     }
-    return projects
   } catch (e) {
-    return []
+    // Claude projects directory doesn't exist or can't be read
+  }
+
+  // 2. Get Copilot projects and merge
+  try {
+    const copilotProjects = await getCopilotProjects()
+
+    for (const [projectId, copilotData] of copilotProjects) {
+      if (projectMap.has(projectId)) {
+        // Project exists in both sources - merge
+        const existing = projectMap.get(projectId)
+        existing.sources.push('gcopilot')
+        existing.sessionCount.gcopilot = copilotData.sessions.length
+
+        // Update lastUpdated to the most recent
+        const existingDate = existing.lastUpdated ? new Date(existing.lastUpdated) : null
+        if (!existingDate || copilotData.lastUpdated > existingDate) {
+          existing.lastUpdated = copilotData.lastUpdated.toISOString()
+        }
+      } else {
+        // New project only in Copilot
+        projectMap.set(projectId, {
+          id: projectId,
+          name: copilotData.projectPath,
+          path: copilotData.projectPath,
+          sources: ['gcopilot'],
+          sessionCount: {
+            gcopilot: copilotData.sessions.length
+          },
+          lastUpdated: copilotData.lastUpdated.toISOString()
+        })
+      }
+    }
+  } catch (e) {
+    // Copilot integration failed - continue with Claude projects only
+  }
+
+  // 3. Convert map to array and sort by lastUpdated
+  const projects = Array.from(projectMap.values())
+  projects.sort((a, b) => {
+    const dateA = a.lastUpdated ? new Date(a.lastUpdated) : new Date(0)
+    const dateB = b.lastUpdated ? new Date(b.lastUpdated) : new Date(0)
+    return dateB - dateA
+  })
+
+  return projects
+}
+
+/**
+ * Parse a Copilot session file and extract session metadata
+ */
+async function parseCopilotSession(filePath) {
+  try {
+    const stats = await fs.stat(filePath)
+    const content = await fs.readFile(filePath, 'utf8')
+    const lines = content.trim().split('\n')
+
+    let startTime, endTime
+    let messageCount = 0
+    const recentMessages = []
+    let sessionId = path.basename(filePath, '.jsonl')
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line)
+
+        // Extract sessionId from session.start event
+        if (data.type === 'session.start' && data.data?.sessionId) {
+          sessionId = data.data.sessionId
+        }
+
+        // Track timestamps
+        if (data.timestamp) {
+          const ts = new Date(data.timestamp)
+          if (!startTime || ts < startTime) startTime = ts
+          if (!endTime || ts > endTime) endTime = ts
+        }
+
+        // Count user and assistant messages
+        if (data.type === 'user.message' || data.type === 'assistant.message') {
+          messageCount++
+
+          // Extract message text for preview
+          let messageText = ''
+          if (data.data?.content) {
+            if (typeof data.data.content === 'string') {
+              messageText = data.data.content
+            } else if (Array.isArray(data.data.content)) {
+              const textPart = data.data.content.find(p => typeof p === 'string')
+              if (textPart) messageText = textPart
+            }
+          }
+
+          if (messageText) {
+            recentMessages.push(messageText.substring(0, 150))
+            if (recentMessages.length > 3) recentMessages.shift()
+          }
+        }
+      } catch (e) {
+        // Skip invalid JSON lines
+      }
+    }
+
+    return {
+      id: sessionId,
+      filePath,
+      startTime: startTime ? startTime.toISOString() : undefined,
+      endTime: endTime ? endTime.toISOString() : undefined,
+      mtime: stats.mtime,
+      messageCount,
+      totalCost: 0, // Copilot doesn't track cost
+      preview: recentMessages.join('\n').substring(0, 200),
+      isAgent: false, // TODO: detect Copilot agents if needed
+      source: 'gcopilot'
+    }
+  } catch (e) {
+    return null
   }
 }
 
+/**
+ * Get Copilot sessions for a specific project
+ */
+async function getCopilotSessions(projectId) {
+  const sessions = []
+
+  try {
+    const files = await fs.readdir(COPILOT_SESSION_PATH)
+
+    for (const file of files) {
+      if (!file.endsWith('.jsonl')) continue
+
+      const filePath = path.join(COPILOT_SESSION_PATH, file)
+      const projectPath = await extractCopilotProjectPath(filePath)
+
+      if (!projectPath) continue
+
+      const sessionProjectId = normalizePathToProjectId(projectPath)
+
+      // Only include sessions for the requested project
+      if (sessionProjectId === projectId) {
+        const session = await parseCopilotSession(filePath)
+        if (session && session.messageCount >= 3) {
+          sessions.push(session)
+        }
+      }
+    }
+  } catch (e) {
+    // Copilot directory doesn't exist or can't be read
+  }
+
+  return sessions
+}
+
 async function getSessions(projectName) {
+  const sessions = []
+
+  // 1. Get Claude Code sessions
   try {
     const projectPath = path.isAbsolute(projectName)
       ? projectName
       : path.join(CLAUDE_PROJECTS_PATH, projectName.replace(/\//g, '-'))
 
     const files = await fs.readdir(projectPath)
-    const sessions = []
 
     for (const file of files) {
       if (file.endsWith('.jsonl')) {
@@ -294,33 +563,43 @@ async function getSessions(projectName) {
         // Detect if this is an agent/subagent session
         const isAgent = file.startsWith('agent-')
 
-        sessions.push({
-          id: sessionId,
-          projectPath,
-          filePath,
-          startTime: startTime ? startTime.toISOString() : undefined,
-          endTime: endTime ? endTime.toISOString() : undefined,
-          mtime: stats.mtime,
-          messageCount,
-          totalCost,
-          preview: recentMessages.join('\n').substring(0, 200),
-          isAgent
-        })
+        // Only include sessions with 3+ messages
+        if (messageCount >= 3) {
+          sessions.push({
+            id: sessionId,
+            projectPath,
+            filePath,
+            startTime: startTime ? startTime.toISOString() : undefined,
+            endTime: endTime ? endTime.toISOString() : undefined,
+            mtime: stats.mtime,
+            messageCount,
+            totalCost,
+            preview: recentMessages.join('\n').substring(0, 200),
+            isAgent,
+            source: 'claudecode'
+          })
+        }
       }
     }
-
-    // Filter out sessions with less than 3 messages (warmup/empty sessions)
-    const filtered = sessions.filter(s => s.messageCount >= 3)
-
-    filtered.sort((a, b) => {
-      if (!a.mtime || !b.mtime) return 0
-      return b.mtime.getTime() - a.mtime.getTime()
-    })
-
-    return filtered
   } catch (e) {
-    return []
+    // Claude project directory doesn't exist or can't be read
   }
+
+  // 2. Get Copilot sessions for this project
+  try {
+    const copilotSessions = await getCopilotSessions(projectName)
+    sessions.push(...copilotSessions)
+  } catch (e) {
+    // Copilot integration failed - continue with Claude sessions only
+  }
+
+  // 3. Sort all sessions by modification time (newest first)
+  sessions.sort((a, b) => {
+    if (!a.mtime || !b.mtime) return 0
+    return b.mtime.getTime() - a.mtime.getTime()
+  })
+
+  return sessions
 }
 
 async function readSessionFile(filePath) {
