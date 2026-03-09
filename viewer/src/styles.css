@@ -112,6 +112,71 @@ h1 { font-size: 20px }
   font-size: 13px;
 }
 
+/* Write tool markdown rendering (v-html content must be globally styled) */
+.write-tool {
+  background: #f6f7fb;
+  border: 1px solid rgba(2, 6, 23, 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  white-space: normal;
+}
+
+.write-summary {
+  font-size: 12px;
+  color: #4b5563;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+  line-height: 1.25;
+}
+
+.write-tool-markdown .write-markdown-block {
+  margin-top: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(2, 6, 23, 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.write-markdown-block > :first-child {
+  margin-top: 0;
+}
+
+.write-markdown-block > :last-child {
+  margin-bottom: 0;
+}
+
+.write-markdown-block pre {
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.write-markdown-block :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, pre, table, hr) {
+  margin-block-start: 0 !important;
+  margin-block-end: 0 !important;
+}
+
+.write-markdown-block :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, pre, table, hr)
+  + :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, pre, table, hr) {
+  margin-top: 0.3rem !important;
+}
+
+.write-markdown-block :where(ul, ol) {
+  padding-left: 1.1rem;
+  margin-left: 0;
+}
+
+.write-markdown-block li {
+  margin: 0.08rem 0;
+  line-height: 1.3;
+}
+
+.write-markdown-block li > p {
+  margin: 0 !important;
+}
+
 /* Element Plus Image Viewer - darker background for better contrast */
 .el-image-viewer__mask {
   background-color: rgba(0, 0, 0, 0.85) !important;

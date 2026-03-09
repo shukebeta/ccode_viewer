@@ -307,6 +307,33 @@ function renderReadTool(c) {
   return `<div class="read-container"><pre class="code-block read-collapsed" style="${preStyle}"><code${lang ? ` class="language-${escapeHtml(lang)}"` : ''}>${escaped}</code></pre><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button></div>`
 }
 
+function isMarkdownFilePath(filePath) {
+  if (typeof filePath !== 'string') return false
+  return /\.md$/i.test(filePath.trim())
+}
+
+function renderWriteTool(c) {
+  const msg = (c && c.message) || {}
+  const input = (c && c.input) || msg.input || {}
+  const filePath = input.file_path || input.filePath || input.path || c.file_path || c.filePath || c.path || msg.file_path || msg.filePath || msg.path || ''
+  const rawContent = input.content ?? msg.content ?? ''
+  const summaryText = filePath ? `Writing: ${String(filePath)}` : 'Writing file'
+  const summary = `<div class="write-summary">${escapeHtml(summaryText)}</div>`
+
+  if (!isMarkdownFilePath(filePath)) {
+    return `<div class="write-tool">${summary}</div>`
+  }
+
+  const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent, null, 2)
+  if (!content || !content.trim()) {
+    return `<div class="write-tool write-tool-markdown">${summary}<div class="write-markdown-block"><em>(empty markdown)</em></div></div>`
+  }
+
+  const renderer = createCustomMarkdownRenderer()
+  const markdownHtml = marked.parse(escapeHtml(content), { renderer })
+  return `<div class="write-tool write-tool-markdown">${summary}<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div></div>`
+}
+
 function contentToHtml(c) {
   if (Array.isArray(c)) return c.map(contentToHtml).join('<br/>')
 
@@ -362,6 +389,9 @@ function contentToHtml(c) {
   // Grep tool: show search parameters
   if ((c.name === 'Grep' || c.toolName === 'Grep' || (c.message && c.message.name === 'Grep'))) {
     return renderGrepTool(c)
+  }
+  if ((c.name === 'Write' || c.toolName === 'Write' || (c.message && c.message.name === 'Write'))) {
+    return renderWriteTool(c)
   }
   if ((c.name === 'Bash' || c.toolName === 'Bash' || (c.message && c.message.name === 'Bash'))) {
     const cmd = (c.input && c.input.command) || (c.command) || ''

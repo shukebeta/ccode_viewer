@@ -409,6 +409,24 @@ export default {
           if (path) parts.push('path: ' + path)
           return parts.join(', ')
         }
+        // Write tool: copy markdown source text for markdown files
+        if (c.name === 'Write' || c.toolName === 'Write' || (c.message && c.message.name === 'Write')) {
+          const message = c.message || {}
+          const input = c.input || message.input || {}
+          const filePath = input.file_path || input.filePath || input.path || c.file_path || c.filePath || c.path || message.file_path || message.filePath || message.path || ''
+          const rawContent = input.content ?? message.content ?? ''
+          const isMarkdownFile = typeof filePath === 'string' && /\.md$/i.test(filePath.trim())
+
+          if (isMarkdownFile) {
+            if (typeof rawContent === 'string') return rawContent
+            if (rawContent == null) return ''
+            return typeof rawContent === 'object' ? JSON.stringify(rawContent, null, 2) : String(rawContent)
+          }
+
+          if (typeof rawContent === 'string' && rawContent) return rawContent
+          if (rawContent != null && typeof rawContent === 'object') return JSON.stringify(rawContent, null, 2)
+          return filePath ? `Writing: ${filePath}` : ''
+        }
         if (c.name === 'ExitPlanMode' || c.toolName === 'ExitPlanMode' || (c.message && c.message.name === 'ExitPlanMode')) {
           return (c.input && c.input.plan) || c.plan || ''
         }
