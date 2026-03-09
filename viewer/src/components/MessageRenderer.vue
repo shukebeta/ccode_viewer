@@ -125,12 +125,46 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
 }
 
+function looksLikeMarkdownText(text) {
+  if (typeof text !== 'string') return false
+  const s = text.trim()
+  if (!s) return false
+
+  const markdownPatterns = [
+    /(^|\n)\s*#{1,6}\s+\S/m,
+    /(^|\n)\s*[-*+]\s+\S/m,
+    /(^|\n)\s*\d+\.\s+\S/m,
+    /```[\s\S]*?```/,
+    /`[^`\n]+`/,
+    /\*\*[^*\n]+\*\*/,
+    /(^|\n)\s*>\s+\S/m,
+    /\[[^\]]+\]\([^)]+\)/,
+    /(^|\n)\s*\|.+\|.+\|?/m
+  ]
+
+  return markdownPatterns.some((re) => re.test(s))
+}
+
+function renderMarkdownLikeText(text) {
+  const renderer = createCustomMarkdownRenderer()
+  const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
+  return `<div class="markdown-text" style="white-space:normal;line-height:1.35">${markdownHtml}</div>`
+}
+
 function renderPlain(c) {
-  if (typeof c === 'string') return escapeHtml(c)
+  if (typeof c === 'string') {
+    if (looksLikeMarkdownText(c)) return renderMarkdownLikeText(c)
+    return escapeHtml(c)
+  }
   if (Array.isArray(c)) return c.map(renderPlain).join('<br/>')
   if (c && typeof c === 'object') {
     if (c.type === 'image') return '<span class="image-indicator">[Image]</span>'
-    return escapeHtml(c.text || JSON.stringify(c))
+    const text = typeof c.text === 'string' ? c.text : (typeof c.content === 'string' ? c.content : '')
+    if (text) {
+      if (looksLikeMarkdownText(text)) return renderMarkdownLikeText(text)
+      return escapeHtml(text)
+    }
+    return escapeHtml(JSON.stringify(c))
   }
   return ''
 }
@@ -346,7 +380,7 @@ function contentToHtml(c) {
       const cmd = mcmd[1].trim()
       return `<div class="command-msg">command: ${escapeHtml(cmd.startsWith('/') ? cmd : '/' + cmd)}</div>`
     }
-    return escapeHtml(c)
+    return renderPlain(c)
   }
   // treat null/undefined as empty
   if (c == null) return ''
