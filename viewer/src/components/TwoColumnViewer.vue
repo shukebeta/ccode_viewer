@@ -26,13 +26,23 @@
   <li v-for="(m, idx) in allMessages" :key="m.id || idx" :id="`msg-${m.id || idx}`" class="assistant-item" :class="{ 'flash': m._flash }" :data-display="m.displayType">
             <div class="assistant-card card" :class="{ muted: m.muted }" style="position:relative">
             <div class="assistant-full">
-              <div class="copy-group">
-                <button class="copy-btn text-copy" :class="{ copied: m._copiedText }" @click.prevent="copyText(m)" :title="m._copiedText ? 'Copied text' : 'Copy text'">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><rect x="8" y="3" width="13" height="13" rx="2" ry="2"/></svg>
-                </button>
-                <button class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" @click.prevent="copyRaw(m)" :title="m._copiedRaw ? 'Copied raw' : 'Copy source JSON'">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16 20V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v14"/></svg>
-                </button>
+              <div class="assistant-toolbar">
+                <div class="copy-group">
+                  <button class="copy-btn text-copy" :class="{ copied: m._copiedText }" @click.prevent="copyText(m)" :title="m._copiedText ? 'Copied text' : 'Copy text'">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  </button>
+                  <button class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" @click.prevent="copyRaw(m)" :title="m._copiedRaw ? 'Copied raw' : 'Copy source JSON'">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6" />
+                      <path d="M10 13h4" />
+                      <path d="M10 17h4" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <MessageRenderer :content="m.content" :showRawCopy="false" />
               <div v-if="m.muted" class="muted-note">- user interruption -</div>
@@ -523,21 +533,21 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 .right ul li.assistant-item + li.assistant-item { border-top: 1px dashed rgba(15,23,36,0.06); margin-top: 6px; padding-top: 6px; }
 
 /* assistant card copy button */
-.assistant-card { padding: 34px 8px 8px 8px; position: relative }
+.assistant-card { padding: 8px; position: relative }
+.assistant-full { min-width: 0; }
+.assistant-toolbar { display: flex; justify-content: flex-end; min-height: 24px; margin-bottom: 6px; }
 /* Distinguish user and assistant messages with different backgrounds */
 .assistant-item[data-display="user"] .assistant-card { background: rgba(59, 130, 246, 0.04); border-left: 3px solid rgba(59, 130, 246, 0.3); }
 .assistant-item[data-display="assistant"] .assistant-card { background: rgba(255, 255, 255, 0.02); }
-.copy-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(255,255,255,0.02); color: inherit; padding:6px; border-radius:6px; cursor:pointer }
-.copy-btn svg { display:block }
+.copy-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(255,255,255,0.02); color: inherit; padding:6px; border-radius:6px; cursor:pointer; line-height: 0 }
+.copy-btn svg { display:block; width: 14px; height: 14px; overflow: visible }
 .copy-btn:hover { background: rgba(255,255,255,0.04) }
 .copy-btn.copied { background: rgba(52,211,153,0.16); color: var(--success) }
 
-.copy-group .copy-btn { position: relative; top: 0; right: 0; padding:4px; border-radius:6px; background: rgba(255,255,255,0.02) }
-.copy-group .copy-btn svg { width:12px; height:12px }
+.copy-group .copy-btn { position: relative; top: 0; right: 0; width: 24px; height: 24px; min-width: 24px; padding: 0; border-radius: 6px; border: 1px solid rgba(148,163,184,0.28); background: rgba(255,255,255,0.04); box-sizing: border-box }
 .copy-group .copy-btn:hover { background: rgba(255,255,255,0.04) }
-.copy-group { position: absolute; top: 6px; right: 8px; display: flex; gap: 6px; opacity: 0; transform: translateY(-4px); transition: opacity 150ms ease, transform 150ms ease; z-index: 3 }
-.assistant-item:hover .copy-group, .assistant-card:hover .copy-group { opacity: 1; transform: translateY(0) }
-.assistant-card { padding: 34px 8px 8px 8px; position: relative }
+.copy-group { display: flex; align-items: center; gap: 6px; opacity: 0; transform: translateY(-2px); transition: opacity 150ms ease, transform 150ms ease; pointer-events: none }
+.assistant-item:hover .copy-group, .assistant-card:hover .copy-group, .copy-group:focus-within { opacity: 1; transform: translateY(0); pointer-events: auto }
 .assistant-card.muted { opacity: 0.7; background: #f3f4f6 }
 .muted-note { color: #666; font-style: italic; margin-top: 6px; font-size: 13px }
 .flash { animation: flash-bg 2.2s ease-in-out }
