@@ -28,20 +28,8 @@
             <div class="assistant-full">
               <div class="assistant-toolbar">
                 <div class="copy-group">
-                  <button class="copy-btn text-copy" :class="{ copied: m._copiedText }" @click.prevent="copyText(m)" :title="m._copiedText ? 'Copied text' : 'Copy text'">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </button>
-                  <button class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" @click.prevent="copyRaw(m)" :title="m._copiedRaw ? 'Copied raw' : 'Copy source JSON'">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <path d="M14 2v6h6" />
-                      <path d="M10 13h4" />
-                      <path d="M10 17h4" />
-                    </svg>
-                  </button>
+                  <ActionIconButton class="copy-btn text-copy" :class="{ copied: m._copiedText }" icon="copy" label="Copy text" active-label="Copied text" @click.prevent="copyText(m)" />
+                  <ActionIconButton class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" icon="document" label="Copy source JSON" active-label="Copied raw" @click.prevent="copyRaw(m)" />
                 </div>
               </div>
               <MessageRenderer :content="m.content" :showRawCopy="false" />
@@ -57,9 +45,10 @@
 
 <script>
 import MessageRenderer from './MessageRenderer.vue'
+import ActionIconButton from './ActionIconButton.vue'
 
 export default {
-  components: { MessageRenderer },
+  components: { MessageRenderer, ActionIconButton },
   props: ['file', 'highlightUserId'],
   data() {
     return {
@@ -539,8 +528,7 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 /* Distinguish user and assistant messages with different backgrounds */
 .assistant-item[data-display="user"] .assistant-card { background: rgba(59, 130, 246, 0.04); border-left: 3px solid rgba(59, 130, 246, 0.3); }
 .assistant-item[data-display="assistant"] .assistant-card { background: rgba(255, 255, 255, 0.02); }
-.copy-btn { display: inline-flex; align-items: center; justify-content: center; border: none; background: rgba(255,255,255,0.02); color: inherit; padding:6px; border-radius:6px; cursor:pointer; line-height: 0 }
-.copy-btn svg { display:block; width: 14px; height: 14px; overflow: visible }
+.copy-btn { background: rgba(255,255,255,0.02); color: inherit; padding: 6px; border-radius: 6px }
 .copy-btn:hover { background: rgba(255,255,255,0.04) }
 .copy-btn.copied { background: rgba(52,211,153,0.16); color: var(--success) }
 

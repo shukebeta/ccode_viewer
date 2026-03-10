@@ -4,13 +4,10 @@ const os = require('os')
 const { mapSessionMessages } = require('../fsHelpers')
 
 const SAMPLE_PATH = path.join(__dirname, '..', 'testdata', 'sample.jsonl')
+const sampleTest = fs.existsSync(SAMPLE_PATH) ? it : it.skip
 
 describe('sample.jsonl classification', () => {
-  it('does not classify tool_* messages as users in the first 200 lines', async () => {
-    if (!fs.existsSync(SAMPLE_PATH)) {
-      console.warn('sample.jsonl not found; skipping sample-based test')
-      return
-    }
+  sampleTest('does not classify tool_* messages as users in the first 200 lines', async () => {
     const content = fs.readFileSync(SAMPLE_PATH, 'utf8')
     const lines = content.trim().split('\n').slice(0, 200)
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-sample-'))
