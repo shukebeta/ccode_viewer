@@ -61,4 +61,71 @@ describe('mapSessionMessages', () => {
     expect(out.mapping[u1.id].some(a => (typeof a.content === 'string' ? a.content : JSON.stringify(a.content)).includes('reply to first'))).toBeTruthy()
     expect(out.mapping[u2.id].some(a => (typeof a.content === 'string' ? a.content : JSON.stringify(a.content)).includes('reply to second'))).toBeTruthy()
   })
+
+  it('removes injected skill payload text from user previews while preserving raw content', async () => {
+    const lines = [
+      {
+        type: 'user',
+        uuid: 'u1',
+        timestamp: '2025-09-20T00:00:00.000Z',
+        message: {
+          content: [
+            {
+              type: 'text',
+              text: 'Base directory for this skill: D:\\\\git\\\\repo\\\\.claude\\\\skills\\\\query-db\n\n# Query DB Skill\n\nUse this skill to query Oracle.'
+            },
+            { type: 'text', text: '真正的用户问题' }
+          ]
+        }
+      },
+      { type: 'assistant', uuid: 'a1', timestamp: '2025-09-20T00:00:01.000Z', message: { content: 'reply' } }
+    ]
+    const file = writeTempJsonl(lines)
+    const out = await mapSessionMessages(file)
+
+    expect(out.users[0].preview).toBe('真正的用户问题')
+    expect(JSON.stringify(out.users[0].content)).toContain('Base directory for this skill:')
+    expect(out.mapping[out.users[0].id].length).toBe(1)
+  })
+
+  it('treats meta slash-command skill prompts as assistant content mapped to the command', async () => {
+    const lines = [
+      {
+        type: 'user',
+        uuid: 'u1',
+        timestamp: '2025-09-20T00:00:00.000Z',
+        message: { content: '<command-message>review</command-message>\n<command-name>/review</command-name>\n<command-args>3504</command-args>' }
+      },
+      {
+        type: 'user',
+        uuid: 'meta1',
+        parentUuid: 'u1',
+        isMeta: true,
+        timestamp: '2025-09-20T00:00:01.000Z',
+        message: {
+          content: [
+            {
+              type: 'text',
+              text: 'You are an expert code reviewer. Follow these steps:\n\nPR number: 3504'
+            }
+          ]
+        }
+      },
+      {
+        type: 'assistant',
+        uuid: 'a1',
+        timestamp: '2025-09-20T00:00:02.000Z',
+        message: { content: 'PR Review feedback\n- Looks good overall.' }
+      }
+    ]
+    const file = writeTempJsonl(lines)
+    const out = await mapSessionMessages(file)
+
+    expect(out.users).toHaveLength(1)
+    expect(out.users[0].id).toBe('u1')
+    expect(out.mapping.u1).toBeDefined()
+    expect(out.mapping.u1).toHaveLength(2)
+    expect(JSON.stringify(out.mapping.u1[0].content)).toContain('expert code reviewer')
+    expect(JSON.stringify(out.mapping.u1[1].content)).toContain('PR Review feedback')
+  })
 })

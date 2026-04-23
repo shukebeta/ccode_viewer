@@ -177,6 +177,55 @@ h1 { font-size: 20px }
   margin: 0 !important;
 }
 
+.skill-content {
+  margin: 4px 0;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 6px;
+  background: #f8fbff;
+  overflow: hidden;
+}
+
+.skill-content-summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  color: #2563eb;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-content-summary::-webkit-details-marker {
+  display: none;
+}
+
+.skill-content[open] .skill-content-summary {
+  border-bottom: 1px solid rgba(59, 130, 246, 0.12);
+  white-space: normal;
+}
+
+.skill-content-body {
+  padding: 8px 10px;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.skill-content-body > :first-child {
+  margin-top: 0;
+}
+
+.skill-content-body > :last-child {
+  margin-bottom: 0;
+}
+
+.skill-content-body pre {
+  background: #ffffff;
+  border: 1px solid rgba(2, 6, 23, 0.08);
+  border-radius: 6px;
+  padding: 8px;
+}
+
 /* Element Plus Image Viewer - darker background for better contrast */
 .el-image-viewer__mask {
   background-color: rgba(0, 0, 0, 0.85) !important;

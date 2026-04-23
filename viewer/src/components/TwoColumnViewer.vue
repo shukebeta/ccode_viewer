@@ -5,13 +5,32 @@
       <div class="left-scroll">
         <div v-if="loading">Loading...</div>
         <ul v-else>
-          <li v-for="u in users" :key="u.id" class="user-item" :class="{ selected: selectedUser && selectedUser.id === u.id }">
-            <template v-if="u.nonInteractive">
-              <div class="user-preview muted-entry">{{ u.preview }}</div>
+          <li v-for="u in visibleUsers" :key="u.id" class="user-item" :class="{ selected: selectedUser && selectedUser.id === u.id }">
+            <template v-if="u.nonInteractive && !u.interruption">
+              <div
+                class="user-preview user-preview-static muted-entry"
+                :class="{ 'user-preview-truncated': u.isLongPreview }"
+                :title="u.isLongPreview ? u.preview : ''"
+              >
+                <span class="user-preview-text">{{ u.preview }}</span>
+                <span v-if="u.isLongPreview" class="user-preview-more" aria-hidden="true">...</span>
+              </div>
             </template>
             <template v-else>
-              <button class="user-preview" @click="selectUser(u)">
-                <MessageRenderer :content="u.content || u.preview || ''" :disableImagePreview="true" />
+              <button
+                type="button"
+                class="user-preview user-preview-button"
+                :class="{
+                  'user-preview-truncated': u.isLongPreview,
+                  'user-preview-command': u.isCommand,
+                  'muted-entry': u.interruption
+                }"
+                :title="u.isLongPreview ? u.preview : ''"
+                :aria-label="u.preview || 'User message'"
+                @click="selectUser(u)"
+              >
+                <span class="user-preview-text">{{ u.preview }}</span>
+                <span v-if="u.isLongPreview" class="user-preview-more" aria-hidden="true">...</span>
               </button>
             </template>
           </li>
@@ -23,10 +42,17 @@
       <div class="right-scroll">
         <div v-if="allMessages.length === 0">No messages</div>
         <ul>
-  <li v-for="(m, idx) in allMessages" :key="m.id || idx" :id="`msg-${m.id || idx}`" class="assistant-item" :class="{ 'flash': m._flash }" :data-display="m.displayType">
+  <li
+    v-for="(m, idx) in allMessages"
+    :key="m.id || idx"
+    :id="`msg-${m.id || idx}`"
+    class="assistant-item"
+    :class="{ 'flash': m._flash, 'compact-entry': m._compactDisplay }"
+    :data-display="m.displayType"
+  >
             <div class="assistant-card card" :class="{ muted: m.muted }" style="position:relative">
             <div class="assistant-full">
-              <div class="assistant-toolbar">
+              <div v-if="!m._hideToolbar" class="assistant-toolbar">
                 <div class="copy-group">
                   <ActionIconButton class="copy-btn text-copy" :class="{ copied: m._copiedText }" icon="copy" label="Copy text" active-label="Copied text" @click.prevent="copyText(m)" />
                   <ActionIconButton class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" icon="document" label="Copy source JSON" active-label="Copied raw" @click.prevent="copyRaw(m)" />
@@ -46,6 +72,17 @@
 <script>
 import MessageRenderer from './MessageRenderer.vue'
 import ActionIconButton from './ActionIconButton.vue'
+import '../../../shared/messageContent.js'
+
+const messageContentUtils = globalThis.__ccodeViewerMessageContentUtils
+
+if (!messageContentUtils) {
+  throw new Error('messageContent utilities failed to load')
+}
+
+const { getUserPreviewText, hasUserVisibleContent } = messageContentUtils
+const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
+const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
 
 export default {
   components: { MessageRenderer, ActionIconButton },
@@ -61,14 +98,19 @@ export default {
       sessionCache: new Map() // Cache for session data
     }
   },
+  computed: {
+    visibleUsers() {
+      return this.users.filter(u => !u.hideFromUsers)
+    }
+  },
   async mounted() { await this.load() },
   watch: {
     file: { immediate: true, handler() { this.load() } },
     highlightUserId: {
       handler(userId) {
-        if (userId && this.users.length > 0) {
+        if (userId && this.visibleUsers.length > 0) {
           // Find and select the user
-          const user = this.users.find(u => u.id === userId)
+          const user = this.visibleUsers.find(u => u.id === userId)
           if (user) {
             this.$nextTick(() => {
               this.selectUser(user)
@@ -94,7 +136,7 @@ export default {
 
         // Auto-highlight if needed
         if (this.highlightUserId) {
-          const user = this.users.find(u => u.id === this.highlightUserId)
+          const user = this.visibleUsers.find(u => u.id === this.highlightUserId)
           if (user) {
             this.$nextTick(() => {
               this.selectUser(user)
@@ -117,27 +159,11 @@ export default {
         // Clean initial users/mapping: remove skippable entries and mark interruptions
         const rawUsers = json.users || []
         const rawMapping = json.mapping || {}
-        // process users: remove skippable and mark interruptions/commands as nonInteractive
+        // process users: remove skippable and decorate command/interruption entries
         this.users = (rawUsers || []).map(u => {
-          const txt = this.extractText(u.content || u.preview || '')
-          if (this.isSkippable(txt)) return null
-          const out = Object.assign({}, u)
-          // interruption
-          if (this.isInterruptedByUser(txt)) {
-            out.interruption = true
-            out.preview = '- user interruption -'
-            out.nonInteractive = true
-          } else {
-            // command messages
-            const cm = String(txt).match(/<command-message>(.*?)<\/command-message>/i) || String(txt).match(/<command-name>(.*?)<\/command-name>/i)
-            if (cm && cm[1]) {
-              const cmd = cm[1].trim()
-              out.command = cmd
-              out.preview = `command: ${cmd.startsWith('/') ? cmd : '/' + cmd}`
-              out.nonInteractive = true
-            }
-          }
-          return out
+          const rawTxt = this.extractText(u.content || u.preview || '')
+          if (this.isSkippable(rawTxt)) return null
+          return this.decorateUser(u)
         }).filter(Boolean)
         // process mapping arrays
         const cleaned = {}
@@ -174,7 +200,7 @@ export default {
 
       // Auto-highlight if highlightUserId is set
       if (this.highlightUserId) {
-        const user = this.users.find(u => u.id === this.highlightUserId)
+        const user = this.visibleUsers.find(u => u.id === this.highlightUserId)
         if (user) {
           this.$nextTick(() => {
             this.selectUser(user)
@@ -206,14 +232,16 @@ export default {
         this.es = null
       }
     },
-  integrateMessage(m) {
+    integrateMessage(m) {
       // Normalize similar to server mapping: determine id, type, content
       const id = m.uuid || (m.message && m.message.id) || `i_${Date.now()}`
       let rawType = m.type
       let type = rawType
+      const isMetaUser = rawType === 'user' && m.isMeta
 
       // If message type indicates a tool, treat as assistant
       if (type === 'tool_use' || type === 'tool_result' || type === 'tool') type = 'assistant'
+      if (isMetaUser) type = 'assistant'
       if (!type && m.message && m.message.role) type = m.message.role
 
       // If message content contains tool entries, treat as assistant
@@ -237,26 +265,7 @@ export default {
       if (typeof rawType === 'string' && rawType.startsWith('tool')) type = 'assistant'
 
       if (type === 'user') {
-        const previewRaw = (typeof content === 'string' ? content : JSON.stringify(content))
-        const preview = previewRaw.substring(0,200)
-        const userObj = { id, preview, content, timestamp: m.timestamp }
-        // detect interruptions and command messages
-        if (this.isInterruptedByUser(previewRaw)) {
-          userObj.interruption = true
-          // show a clean single-line preview
-          userObj.preview = '- user interruption -'
-          userObj.nonInteractive = true
-        } else {
-          // detect command-message markup
-          const cm = String(previewRaw).match(/<command-message>(.*?)<\/command-message>/i) || String(previewRaw).match(/<command-name>(.*?)<\/command-name>/i)
-          if (cm && cm[1]) {
-            const cmd = cm[1].trim()
-            userObj.command = cmd
-            userObj.preview = `command: ${cmd.startsWith('/') ? cmd : '/' + cmd}`
-            userObj.nonInteractive = true
-          }
-        }
-        this.users.push(userObj)
+        this.users.push(this.decorateUser({ id, content, timestamp: m.timestamp }))
         this.mapping[id] = []
       } else {
         // If this is a tool_result that references a parent assistant, try to merge
@@ -298,6 +307,34 @@ export default {
         this.rebuildAllMessages()
       }
     },
+    decorateUser(user) {
+      const out = Object.assign({}, user)
+      const rawContent = out.content || out.preview || ''
+      const sidebarText = getUserPreviewText(rawContent)
+
+      out.preview = sidebarText
+      out.hideFromUsers = !hasUserVisibleContent(rawContent)
+      out.nonInteractive = false
+      out.isCommand = false
+
+      if (this.isInterruptedByUser(sidebarText)) {
+        out.interruption = true
+        out.preview = '- user interruption -'
+        out.nonInteractive = true
+      } else {
+        const cm = String(sidebarText).match(/<command-message>(.*?)<\/command-message>/i) || String(sidebarText).match(/<command-name>(.*?)<\/command-name>/i)
+        if (cm && cm[1]) {
+          const cmd = cm[1].trim()
+          out.command = cmd
+          out.preview = `command: ${cmd.startsWith('/') ? cmd : '/' + cmd}`
+          out.isCommand = true
+        }
+      }
+
+      out.isLongPreview = this.isLongPreview(out.preview)
+
+      return out
+    },
     rebuildAllMessages() {
       const out = []
       // include any orphaned assistant messages first
@@ -309,7 +346,13 @@ export default {
       }
       for (const u of this.users) {
         const ucontent = u.content || u.preview || ''
-        out.push(Object.assign({ displayType: 'user', content: ucontent }, u))
+        const isCompactDisplay = Boolean(u.isCommand || u.interruption)
+        out.push(Object.assign({
+          displayType: 'user',
+          content: ucontent,
+          _compactDisplay: isCompactDisplay,
+          _hideToolbar: isCompactDisplay
+        }, u))
         const replies = this.mapping[u.id] || []
         for (const a of replies) {
           const content = a.content || a.preview || (a.raw ? (typeof a.raw === 'string' ? a.raw : JSON.stringify(a.raw)) : '')
@@ -331,12 +374,23 @@ export default {
       const s = String(text).trim()
       return s === 'Request interrupted by user' || s.includes('Request interrupted by user')
     },
+    isLongPreview(text) {
+      if (!text) return false
+
+      let weight = 0
+      for (const ch of String(text)) {
+        weight += WIDE_CHAR_RE.test(ch) ? 2 : 1
+        if (weight > USER_PREVIEW_TRUNCATION_THRESHOLD) return true
+      }
+
+      return false
+    },
     selectUser(u) {
-      if (u && u.nonInteractive) return
+      if (u && u.nonInteractive && !u.interruption) return
       this.selectedUser = u
       this.$nextTick(() => {
         // Scroll Users column (left side) to the selected user
-        const userIndex = this.users.findIndex(user => user.id === u.id)
+        const userIndex = this.visibleUsers.findIndex(user => user.id === u.id)
         if (userIndex >= 0) {
           const leftScroll = document.querySelector('.left-scroll')
           const userItems = leftScroll?.querySelectorAll('.user-item')
@@ -491,11 +545,81 @@ export default {
 }
 
 .left ul { padding: 0; margin: 0; list-style: none }
-.left li { margin-bottom: 6px; margin-right: 4px; }
-.left button { display: block; width: 100%; text-align: left; padding: 8px; border: 1px solid #eee; border-radius: 4px; background: white; box-sizing: border-box }
-.left button:hover { background: #fafafa }
-.left li.selected .user-preview { background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.12) }
-.muted-entry { color: #666; font-style: italic; padding: 6px 8px; border: 1px solid #f0f0f0; border-radius:4px; background: #fbfbfb; line-height:1.1; margin:4px 0 }
+.left li { margin-right: 4px; }
+.left li + li {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.14);
+}
+.user-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  box-sizing: border-box;
+  background: white;
+  line-height: 1.35;
+}
+
+.user-preview-button {
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-preview-button:hover {
+  background: #fafafa;
+}
+
+.user-preview-command {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+  color: #4b5563;
+}
+
+.left li.selected .user-preview {
+  background: rgba(37,99,235,0.08);
+  border-color: rgba(37,99,235,0.12);
+}
+
+.user-preview-text {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.user-preview-static {
+  cursor: default;
+}
+
+.muted-entry {
+  color: #666;
+  font-style: italic;
+  background: #fbfbfb;
+  border-color: #f0f0f0;
+}
+
+.user-preview-truncated {
+  padding-right: 28px;
+}
+
+.user-preview-more {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  padding-left: 6px;
+  color: #6b7280;
+  background: inherit;
+  line-height: 1;
+}
 
 .right {
   flex: 1;
@@ -518,8 +642,11 @@ export default {
 pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; margin: 0; }
 
 /* compact dashed separator between assistant replies */
-.right ul li.assistant-item { padding-top: 6px; }
-.right ul li.assistant-item + li.assistant-item { border-top: 1px dashed rgba(15,23,36,0.06); margin-top: 6px; padding-top: 6px; }
+.right ul li.assistant-item + li.assistant-item {
+  border-top: 1px dashed rgba(15, 23, 42, 0.14);
+  margin-top: 10px;
+  padding-top: 10px;
+}
 
 /* assistant card copy button */
 .assistant-card { padding: 8px; position: relative }
@@ -528,6 +655,8 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 /* Distinguish user and assistant messages with different backgrounds */
 .assistant-item[data-display="user"] .assistant-card { background: rgba(59, 130, 246, 0.04); border-left: 3px solid rgba(59, 130, 246, 0.3); }
 .assistant-item[data-display="assistant"] .assistant-card { background: rgba(255, 255, 255, 0.02); }
+.assistant-item.compact-entry .assistant-card { padding: 6px 10px; }
+.assistant-item.compact-entry .assistant-full > .message-renderer { line-height: 1.2; }
 .copy-btn { background: rgba(255,255,255,0.02); color: inherit; padding: 6px; border-radius: 6px }
 .copy-btn:hover { background: rgba(255,255,255,0.04) }
 .copy-btn.copied { background: rgba(52,211,153,0.16); color: var(--success) }

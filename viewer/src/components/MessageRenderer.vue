@@ -11,9 +11,18 @@
 <script setup>
 import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
+import '../../../shared/messageContent.js'
 
 // Configure marked to disable deprecated mangle option
 marked.setOptions({ mangle: false, headerIds: false })
+
+const messageContentUtils = globalThis.__ccodeViewerMessageContentUtils
+
+if (!messageContentUtils) {
+  throw new Error('messageContent utilities failed to load')
+}
+
+const { extractLeadingSkillPayload, getSkillContentSummary } = messageContentUtils
 
 const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true }, disableImagePreview: { type: Boolean, default: false } })
 const emit = defineEmits([])
@@ -151,8 +160,28 @@ function renderMarkdownLikeText(text) {
   return `<div class="markdown-text" style="white-space:normal;line-height:1.35">${markdownHtml}</div>`
 }
 
+function renderSkillContent(text) {
+  const renderer = createCustomMarkdownRenderer()
+  const summary = escapeHtml(getSkillContentSummary(text))
+  const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
+  return `<details class="skill-content"><summary class="skill-content-summary" title="${summary}">${summary}</summary><div class="skill-content-body">${markdownHtml}</div></details>`
+}
+
+function renderTextWithSkillPayload(text) {
+  const { skillText, remainderText } = extractLeadingSkillPayload(String(text))
+  if (!skillText) return null
+
+  const parts = [renderSkillContent(skillText)]
+  if (remainderText) {
+    parts.push(looksLikeMarkdownText(remainderText) ? renderMarkdownLikeText(remainderText) : escapeHtml(remainderText))
+  }
+  return parts.join('<br/>')
+}
+
 function renderPlain(c) {
   if (typeof c === 'string') {
+    const skillHtml = renderTextWithSkillPayload(c)
+    if (skillHtml) return skillHtml
     if (looksLikeMarkdownText(c)) return renderMarkdownLikeText(c)
     return escapeHtml(c)
   }
@@ -161,6 +190,8 @@ function renderPlain(c) {
     if (c.type === 'image') return '<span class="image-indicator">[Image]</span>'
     const text = typeof c.text === 'string' ? c.text : (typeof c.content === 'string' ? c.content : '')
     if (text) {
+      const skillHtml = renderTextWithSkillPayload(text)
+      if (skillHtml) return skillHtml
       if (looksLikeMarkdownText(text)) return renderMarkdownLikeText(text)
       return escapeHtml(text)
     }

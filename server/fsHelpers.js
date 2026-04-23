@@ -1,6 +1,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
+const { getUserPreviewText } = require('../shared/messageContent')
 
 const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
 const COPILOT_SESSION_PATH = path.join(os.homedir(), '.copilot', 'session-state')
@@ -533,13 +534,17 @@ async function getSessions(projectName) {
               messageCount++
               let messageText = ''
               if (data.message && data.message.content) {
-                if (typeof data.message.content === 'string') messageText = data.message.content
+                if (data.type === 'user' && !data.isMeta) {
+                  messageText = getUserPreviewText(data.message.content)
+                } else if (typeof data.message.content === 'string') messageText = data.message.content
                 else if (Array.isArray(data.message.content)) {
                   const t = data.message.content.find(i => i.type === 'text')
                   if (t && t.text) messageText = t.text
                 }
               } else if (data.content) {
-                messageText = typeof data.content === 'string' ? data.content : ''
+                messageText = data.type === 'user' && !data.isMeta
+                  ? getUserPreviewText(data.content)
+                  : (typeof data.content === 'string' ? data.content : '')
               }
               if (messageText) {
                 recentMessages.push(messageText.substring(0, 150))
@@ -628,9 +633,13 @@ async function mapSessionMessages(filePath) {
   const id = m.uuid || (m.message && m.message.id) || `i_${i}`
   const rawType = m.type
   let type = rawType
+  const isMetaUser = rawType === 'user' && m.isMeta
 
     // Normalize tool messages to assistant (tool_use, tool_result, etc.)
     if (type === 'tool_use' || type === 'tool_result' || type === 'tool') type = 'assistant'
+
+    // Claude slash-command expansions and other meta user payloads should render on the assistant side.
+    if (isMetaUser) type = 'assistant'
 
     // If not set, prefer message.role (e.g., { message: { role: 'assistant' } })
     if (!type && m.message && m.message.role) type = m.message.role
@@ -744,26 +753,7 @@ async function mapSessionMessages(filePath) {
 
   // Prepare simplified user list (id, preview, timestamp)
   const usersOut = users.map(u => {
-    let preview = ''
-    if (typeof u.content === 'string') {
-      preview = u.content
-    } else if (Array.isArray(u.content)) {
-      // Extract text from content array
-      const textItem = u.content.find(i => i && i.type === 'text')
-      if (textItem && textItem.text) {
-        preview = textItem.text
-      } else if (containsImage(u.content)) {
-        // Don't stringify large image data
-        preview = '[Image]'
-      } else {
-        preview = JSON.stringify(u.content)
-      }
-    } else if (containsImage(u.content)) {
-      // Don't stringify image objects
-      preview = '[Image]'
-    } else {
-      preview = JSON.stringify(u.content)
-    }
+    const preview = getUserPreviewText(u.content)
     return { 
       id: u.id, 
       content: u.content, // Preserve original structure for rendering
@@ -818,6 +808,7 @@ async function searchInProject(projectId, keyword) {
           if (containsImage(user.content)) continue
 
           const preview = user.preview || ''
+          if (!preview) continue
           if (preview.toLowerCase().includes(keywordLower)) {
             // Get assistant replies for this user message
             const assistantReplies = mapping[user.id] || []
