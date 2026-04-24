@@ -40,14 +40,16 @@ Then open http://localhost:6174 in your browser.
 
 ## Windows EXE packaging
 
-The app can be packaged as a **single Windows EXE** that launches the embedded server and opens the browser automatically.
+The app can be packaged as a **single Windows EXE** that opens a native desktop window and renders the viewer inside an embedded **WebView2** control.
 
 - The packaged EXE is a native Windows launcher with the app payload embedded inside it.
 - On first launch of a given build, it copies the app into `%LOCALAPPDATA%\ClaudeCodeViewer\builds\<build-id>`.
+- It starts the bundled Node server as a child process and loads the viewer inside the desktop window.
+- Closing the desktop window shuts down the child server process as well.
 - It uses **one local port**, not separate 6173/6174 dev ports.
 - At launch it scans for a free port starting at **6173** and falls back to the next available port automatically.
-- If the viewer is already running in the background, launching the EXE again reuses that instance instead of failing.
-- Runtime logs and the last launched PID/URL are written under `%LOCALAPPDATA%\ClaudeCodeViewer\run\`.
+- Runtime logs are written under `%LOCALAPPDATA%\ClaudeCodeViewer\run\<instance-id>\`, and the latest run directory is recorded in `%LOCALAPPDATA%\ClaudeCodeViewer\run\latest-instance.txt`.
+- The desktop window also includes a hover-only **Open in Browser** button in the top-right corner if you want to inspect the same local session in your normal browser.
 
 ### Local packaging
 
@@ -65,7 +67,7 @@ dist/ccode-viewer-win-x64.exe
 dist/BUILD-INFO.txt
 ```
 
-When you run the EXE, the launcher expands the embedded app into LocalAppData, starts the server in the background, and opens your default browser.
+When you run the EXE, the launcher expands the embedded app into LocalAppData, starts the server, opens the desktop host window, and loads the viewer there.
 
 ### GitHub Actions packaging
 
@@ -101,7 +103,7 @@ Run it with **Actions -> Package Windows EXE -> Run workflow**. It installs depe
 ### Packaged app
 
 - **Port behavior**: dynamically selects an available local port starting at 6173
-- **Purpose**: Runs the server and static frontend from a single EXE for easy distribution
+- **Purpose**: Runs the server and static frontend from a single EXE, hosted inside a desktop window for easy launch and shutdown
 
 ## Session Data Format
 
