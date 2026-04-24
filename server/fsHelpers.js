@@ -223,76 +223,74 @@ function normalizePathToProjectId(filePath) {
 }
 
 /**
- * Extract project path from a Copilot session file
- * Returns the first workspace path found in view tool calls
+ * Parse simple YAML (key: value pairs only) — used for workspace.yaml
  */
-async function extractCopilotProjectPath(sessionFilePath) {
+function parseSimpleYaml(text) {
+  const result = {}
+  for (const line of text.split('\n')) {
+    const match = line.match(/^(\w[\w_]*):\s*(.+)$/)
+    if (match) result[match[1]] = match[2].trim()
+  }
+  return result
+}
+
+/**
+ * Convert an absolute path to Claude Code project directory name format.
+ * /home/davidw/Projects/gnn -> -home-davidw-Projects-gnn
+ * Preserves original case (unlike normalizePathToProjectId which lowercases).
+ */
+function pathToClaudeDirName(filePath) {
+  const normalized = filePath.replace(/\\/g, '/')
+  if (normalized.startsWith('/')) {
+    return '-' + normalized.substring(1).replace(/\//g, '-')
+  }
+  return normalized.replace(/\//g, '-')
+}
+
+/**
+ * Read workspace.yaml from a Copilot session directory
+ * Returns { cwd, gitRoot, branch, summary, ... } or null
+ */
+async function readCopilotWorkspace(sessionDir) {
   try {
-    const content = await fs.readFile(sessionFilePath, 'utf8')
-    const lines = content.trim().split('\n')
-
-    for (const line of lines) {
-      try {
-        const data = JSON.parse(line)
-
-        // Look for view tool calls which contain workspace paths
-        if (data.type === 'tool.execution_start' &&
-            data.data?.toolName === 'view' &&
-            data.data?.arguments?.path) {
-
-          const viewPath = data.data.arguments.path
-
-          // Extract project root - simple heuristic: take up to 4 path segments
-          // D:\git\xemt-core\DFX\subdir -> D:\git\xemt-core\DFX
-          const parts = viewPath.split(/[\/\\]/)
-          if (parts.length > 4) {
-            return parts.slice(0, 4).join(path.sep)
-          }
-
-          return viewPath
-        }
-      } catch (e) {
-        // Skip invalid JSON lines
-      }
-    }
-
-    return null
+    const content = await fs.readFile(path.join(sessionDir, 'workspace.yaml'), 'utf8')
+    return parseSimpleYaml(content)
   } catch (e) {
     return null
   }
 }
 
 /**
- * Get all projects from Copilot sessions
+ * Get all projects from Copilot sessions (new directory-based format)
  * Returns a map of projectId -> { sessions: [...], lastUpdated: Date }
  */
 async function getCopilotProjects() {
   const projectMap = new Map()
 
   try {
-    const files = await fs.readdir(COPILOT_SESSION_PATH)
+    const entries = await fs.readdir(COPILOT_SESSION_PATH, { withFileTypes: true })
 
-    for (const file of files) {
-      if (!file.endsWith('.jsonl')) continue
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
 
-      const filePath = path.join(COPILOT_SESSION_PATH, file)
-      const projectPath = await extractCopilotProjectPath(filePath)
+      const sessionDir = path.join(COPILOT_SESSION_PATH, entry.name)
+      const workspace = await readCopilotWorkspace(sessionDir)
 
-      if (!projectPath) continue
+      if (!workspace?.cwd) continue
 
-      const projectId = normalizePathToProjectId(projectPath)
-      const stats = await fs.stat(filePath)
+      const projectId = pathToClaudeDirName(workspace.cwd)
+      const stats = await fs.stat(sessionDir)
 
       if (!projectMap.has(projectId)) {
         projectMap.set(projectId, {
-          projectPath,
+          projectPath: workspace.cwd,
           sessions: [],
           lastUpdated: stats.mtime
         })
       }
 
       const project = projectMap.get(projectId)
-      project.sessions.push(file)
+      project.sessions.push(entry.name)
 
       if (stats.mtime > project.lastUpdated) {
         project.lastUpdated = stats.mtime
@@ -368,7 +366,7 @@ async function getProjects() {
         // New project only in Copilot
         projectMap.set(projectId, {
           id: projectId,
-          name: copilotData.projectPath,
+          name: resolveProjectPath(projectId),
           path: copilotData.projectPath,
           sources: ['gcopilot'],
           sessionCount: {
@@ -394,18 +392,27 @@ async function getProjects() {
 }
 
 /**
- * Parse a Copilot session file and extract session metadata
+ * Parse a Copilot session directory and extract session metadata
  */
-async function parseCopilotSession(filePath) {
+async function parseCopilotSession(sessionDir) {
   try {
-    const stats = await fs.stat(filePath)
-    const content = await fs.readFile(filePath, 'utf8')
+    const stats = await fs.stat(sessionDir)
+    const eventsPath = path.join(sessionDir, 'events.jsonl')
+
+    let content
+    try {
+      content = await fs.readFile(eventsPath, 'utf8')
+    } catch (e) {
+      return null // No events file
+    }
+
     const lines = content.trim().split('\n')
+    const workspace = await readCopilotWorkspace(sessionDir)
 
     let startTime, endTime
     let messageCount = 0
     const recentMessages = []
-    let sessionId = path.basename(filePath, '.jsonl')
+    let sessionId = path.basename(sessionDir)
 
     for (const line of lines) {
       try {
@@ -448,16 +455,22 @@ async function parseCopilotSession(filePath) {
       }
     }
 
+    // Use workspace summary as fallback preview
+    let preview = recentMessages.join('\n').substring(0, 200)
+    if (!preview && workspace?.summary) {
+      preview = workspace.summary
+    }
+
     return {
       id: sessionId,
-      filePath,
+      filePath: sessionDir,
       startTime: startTime ? startTime.toISOString() : undefined,
       endTime: endTime ? endTime.toISOString() : undefined,
       mtime: stats.mtime,
       messageCount,
-      totalCost: 0, // Copilot doesn't track cost
-      preview: recentMessages.join('\n').substring(0, 200),
-      isAgent: false, // TODO: detect Copilot agents if needed
+      totalCost: 0,
+      preview,
+      isAgent: false,
       source: 'gcopilot'
     }
   } catch (e) {
@@ -472,21 +485,21 @@ async function getCopilotSessions(projectId) {
   const sessions = []
 
   try {
-    const files = await fs.readdir(COPILOT_SESSION_PATH)
+    const entries = await fs.readdir(COPILOT_SESSION_PATH, { withFileTypes: true })
 
-    for (const file of files) {
-      if (!file.endsWith('.jsonl')) continue
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
 
-      const filePath = path.join(COPILOT_SESSION_PATH, file)
-      const projectPath = await extractCopilotProjectPath(filePath)
+      const sessionDir = path.join(COPILOT_SESSION_PATH, entry.name)
+      const workspace = await readCopilotWorkspace(sessionDir)
 
-      if (!projectPath) continue
+      if (!workspace?.cwd) continue
 
-      const sessionProjectId = normalizePathToProjectId(projectPath)
+      const sessionProjectId = pathToClaudeDirName(workspace.cwd)
 
       // Only include sessions for the requested project
       if (sessionProjectId === projectId) {
-        const session = await parseCopilotSession(filePath)
+        const session = await parseCopilotSession(sessionDir)
         if (session && session.messageCount >= 3) {
           sessions.push(session)
         }
@@ -612,7 +625,14 @@ async function getSessions(projectName) {
 
 async function readSessionFile(filePath) {
   try {
-    const content = await fs.readFile(filePath, 'utf8')
+    // Handle Copilot session directories (contain events.jsonl)
+    let targetFile = filePath
+    const stat = await fs.stat(filePath)
+    if (stat.isDirectory()) {
+      targetFile = path.join(filePath, 'events.jsonl')
+    }
+
+    const content = await fs.readFile(targetFile, 'utf8')
     const lines = content.trim().split('\n')
     const messages = []
     for (const line of lines) {
@@ -633,10 +653,16 @@ async function mapSessionMessages(filePath) {
 
   // Normalize messages with canonical id, type, timestamp, and content
   const norm = msgs.map((m, i) => {
-  const id = m.uuid || (m.message && m.message.id) || `i_${i}`
+  const id = m.uuid || (m.message && m.message.id) || m.id || `i_${i}`
   const rawType = m.type
   let type = rawType
   const isMetaUser = rawType === 'user' && m.isMeta
+
+    // Normalize Copilot event types: user.message -> user, assistant.message -> assistant
+    if (type === 'user.message') type = 'user'
+    if (type === 'assistant.message' || type === 'assistant.turn_start' || type === 'assistant.turn_end') type = 'assistant'
+    if (type === 'tool.execution_start' || type === 'tool.execution_complete') type = 'assistant'
+    if (type === 'system.message' || type === 'session.start' || type === 'session.model_change' || type === 'session.info' || type === 'session.plan_changed') type = 'system'
 
     // Normalize tool messages to assistant (tool_use, tool_result, etc.)
     if (type === 'tool_use' || type === 'tool_result' || type === 'tool') type = 'assistant'
@@ -667,14 +693,15 @@ async function mapSessionMessages(filePath) {
   // If raw type indicates a tool (e.g., 'tool_result'), force assistant classification
   if (typeof rawType === 'string' && rawType.startsWith('tool')) type = 'assistant'
     const timestamp = m.timestamp || (m.message && m.message.timestamp) || null
-    const content = (m.message && (m.message.content || m.message)) || m.content || m
-  return { raw: m, rawType, id, type, timestamp, content, index: i, parentUuid: m.parentUuid }
+    const content = (m.message && (m.message.content || m.message)) || m.data?.content || m.content || m
+  return { raw: m, rawType, id, type, timestamp, content, index: i, parentUuid: m.parentUuid || m.parentId }
   })
 
   // Build users array and assistant array
   for (const m of norm) {
     if (m.type === 'user') users.push(m)
     else if (m.type === 'assistant') assistants.push(m)
+    // Skip 'system' and other non-conversation types
   }
 
   // If timestamps present, convert to Date for comparisons
@@ -865,7 +892,12 @@ module.exports.mapSessionMessages = mapSessionMessages
 
 async function deleteSession(filePath) {
   try {
-    await fs.unlink(filePath)
+    const stat = await fs.stat(filePath)
+    if (stat.isDirectory()) {
+      await fs.rm(filePath, { recursive: true })
+    } else {
+      await fs.unlink(filePath)
+    }
   } catch (err) {
     throw new Error('Failed to delete session file: ' + err.message)
   }
