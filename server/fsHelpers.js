@@ -471,7 +471,8 @@ async function parseCopilotSession(sessionDir) {
       totalCost: 0,
       preview,
       isAgent: false,
-      source: 'gcopilot'
+      source: 'gcopilot',
+      branches: workspace?.branch ? [workspace.branch] : []
     }
   } catch (e) {
     return null
