@@ -1,0 +1,50 @@
+name: Package Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            viewer/package-lock.json
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm --prefix server ci
+
+      - name: Install viewer dependencies
+        run: npm --prefix viewer ci
+
+      - name: Run server tests
+        run: npm --prefix server exec vitest run
+
+      - name: Build Windows EXE
+        run: npm run package:exe
+
+      - name: Upload packaged app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccode-viewer-win-x64
+          path: |
+            dist/ccode-viewer-win-x64.exe
+            dist/BUILD-INFO.txt

@@ -176,9 +176,29 @@ function extractPlainText(content) {
       .trim()
   }
   if (typeof content !== 'object') return String(content)
+  if (content.toolUseResult && content.toolUseResult.content != null) {
+    const toolUseResultText = extractPlainText(content.toolUseResult.content)
+    if (toolUseResultText) return toolUseResultText
+  }
   if (content.type === 'image') return '[Image]'
+  if (content.type === 'thinking') {
+    const thinkingText = typeof content.thinking === 'string' ? content.thinking.trim() : ''
+    return thinkingText || 'thinking...'
+  }
   if (typeof content.text === 'string') return content.text
   if (typeof content.content === 'string') return content.content
+  if (content.content && typeof content.content === 'object') {
+    const nestedContentText = extractPlainText(content.content)
+    if (nestedContentText) return nestedContentText
+  }
+  if (content.message) {
+    const messageText = extractPlainText(content.message.content ?? content.message.text ?? content.message)
+    if (messageText) return messageText
+  }
+  if (content.result && content.result.content != null) {
+    const resultText = extractPlainText(content.result.content)
+    if (resultText) return resultText
+  }
   if (typeof content.thinking === 'string') return content.thinking
   try {
     return JSON.stringify(content)
@@ -213,6 +233,7 @@ function getSkillContentSummary(text) {
 
 const messageContentUtils = {
   extractLeadingSkillPayload,
+  extractPlainText,
   getSkillContentSummary,
   getUserPreviewText,
   getUserSidebarContent,

@@ -1,5 +1,6 @@
 const {
   extractLeadingSkillPayload,
+  extractPlainText,
   getUserPreviewText,
   getUserSidebarContent,
   hasUserVisibleContent
@@ -38,5 +39,38 @@ describe('messageContent skill handling', () => {
     expect(extracted.skillText).toContain('Query DB Skill')
     expect(extracted.cleanedText).toContain('"type": "text"')
     expect(getUserPreviewText(content)).toBe('我们把这个消息类型错当成用户消息了。')
+  })
+
+  it('returns a placeholder for empty thinking messages', () => {
+    expect(extractPlainText({ type: 'thinking', thinking: '' })).toBe('thinking...')
+  })
+
+  it('extracts nested subagent result text from toolUseResult payloads', () => {
+    const content = {
+      type: 'agent_result',
+      toolUseResult: {
+        status: 'completed',
+        agentType: 'Explore',
+        content: [
+          {
+            type: 'text',
+            text: '这是子 agent 的结果正文。'
+          }
+        ]
+      },
+      content: [
+        {
+          type: 'tool_result',
+          content: [
+            {
+              type: 'text',
+              text: '外层包装内容'
+            }
+          ]
+        }
+      ]
+    }
+
+    expect(extractPlainText(content)).toBe('这是子 agent 的结果正文。')
   })
 })

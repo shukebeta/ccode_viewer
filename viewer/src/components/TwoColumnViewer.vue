@@ -80,7 +80,7 @@ if (!messageContentUtils) {
   throw new Error('messageContent utilities failed to load')
 }
 
-const { getUserPreviewText, hasUserVisibleContent } = messageContentUtils
+const { extractPlainText, getUserPreviewText, hasUserVisibleContent } = messageContentUtils
 const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
 const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
 
@@ -255,7 +255,7 @@ export default {
         }
       }
 
-  const content = (m.message && (m.message.content || m.message)) || m.content || m
+  const content = this.getRenderableContent(m)
   const flatText = this.extractText(content)
 
   // Skip unhelpful messages: Caveat hints and raw local-command stdout
@@ -334,6 +334,17 @@ export default {
       out.isLongPreview = this.isLongPreview(out.preview)
 
       return out
+    },
+    getRenderableContent(message) {
+      const baseContent = (message.message && (message.message.content || message.message)) || message.content || message
+      if (message && message.toolUseResult) {
+        return {
+          type: 'agent_result',
+          content: message.toolUseResult.content ?? baseContent,
+          toolUseResult: message.toolUseResult
+        }
+      }
+      return baseContent
     },
     rebuildAllMessages() {
       const out = []
@@ -442,12 +453,16 @@ export default {
       if (typeof c === 'string') return c
       if (Array.isArray(c)) return c.map(item => this.extractText(item)).join('\n')
       if (typeof c === 'object') {
+        if (c.toolUseResult) {
+          const toolUseResultText = extractPlainText(c.toolUseResult.content ?? c.content)
+          if (toolUseResultText) return toolUseResultText
+        }
         if (c.text) return c.text
         if (c.content && typeof c.content === 'string') return c.content
         // ExitPlanMode: extract the plan text
     // thinking block: extract the thinking text
     if (c.type === 'thinking') {
-      return c.thinking || ''
+      return extractPlainText(c)
     }
         // Grep tool: extract readable search summary
         if (c.name === 'Grep' || c.toolName === 'Grep' || (c.message && c.message.name === 'Grep')) {
@@ -485,7 +500,7 @@ export default {
         }
         if (c.input && c.input.todos) return c.input.todos.map(t => (t.status ? `[${t.status}] ` : '') + (t.content||t.text||t.title||'')).join('\n')
         if (c.result && c.result.content) return typeof c.result.content === 'string' ? c.result.content : JSON.stringify(c.result.content)
-        return JSON.stringify(c)
+        return extractPlainText(c)
       }
       return String(c)
     },
@@ -651,7 +666,7 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 /* assistant card copy button */
 .assistant-card { padding: 8px; position: relative }
 .assistant-full { min-width: 0; }
-.assistant-toolbar { display: flex; justify-content: flex-end; min-height: 24px; margin-bottom: 6px; }
+.assistant-toolbar { position: absolute; top: 8px; right: 8px; z-index: 2; }
 /* Distinguish user and assistant messages with different backgrounds */
 .assistant-item[data-display="user"] .assistant-card { background: rgba(59, 130, 246, 0.04); border-left: 3px solid rgba(59, 130, 246, 0.3); }
 .assistant-item[data-display="assistant"] .assistant-card { background: rgba(255, 255, 255, 0.02); }

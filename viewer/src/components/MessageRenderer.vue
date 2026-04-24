@@ -134,6 +134,12 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
 }
 
+function escapeAttribute(s) {
+  return escapeHtml(s)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function looksLikeMarkdownText(text) {
   if (typeof text !== 'string') return false
   const s = text.trim()
@@ -162,9 +168,10 @@ function renderMarkdownLikeText(text) {
 
 function renderSkillContent(text) {
   const renderer = createCustomMarkdownRenderer()
-  const summary = escapeHtml(getSkillContentSummary(text))
+  const summaryText = getSkillContentSummary(text)
+  const summary = escapeHtml(summaryText)
   const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
-  return `<details class="skill-content"><summary class="skill-content-summary" title="${summary}">${summary}</summary><div class="skill-content-body">${markdownHtml}</div></details>`
+  return `<details class="skill-content"><summary class="skill-content-summary" title="${escapeAttribute(summaryText)}">${summary}</summary><div class="skill-content-body">${markdownHtml}</div></details>`
 }
 
 function renderTextWithSkillPayload(text) {
@@ -195,7 +202,10 @@ function renderPlain(c) {
       if (looksLikeMarkdownText(text)) return renderMarkdownLikeText(text)
       return escapeHtml(text)
     }
-    return escapeHtml(JSON.stringify(c))
+    if (Array.isArray(c.content)) return contentToHtml(c.content)
+    if (c.message) return contentToHtml(c.message.content || c.message.text || c.message)
+    if (c.result && c.result.content != null) return contentToHtml(c.result.content)
+    return renderJson(c)
   }
   return ''
 }
@@ -204,21 +214,35 @@ function renderCode(c) {
   const code = (c && (c.code || c.text)) || ''
   const str = String(code || '')
   // Always render without collapsing - Show more feature temporarily disabled
-  return `<div class="__code_placeholder" data-lang="${escapeHtml('')}" data-raw="${escapeHtml(str)}"></div>`
+  return `<div class="__code_placeholder" data-lang="" data-raw="${escapeAttribute(str)}"></div>`
 }
 
 function renderToolResult(c) {
-  const v = c && (c.content || c.text) || ''
+  const v = c ? (c.content ?? c.text ?? '') : ''
 
   // Handle empty tool results
   if (!v || (typeof v === 'string' && v.trim() === '')) {
     return '<div class="empty-tool-result">(no output)</div>'
   }
 
+  if (Array.isArray(v)) {
+    const rendered = v.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
+    return rendered || '<div class="empty-tool-result">(no output)</div>'
+  }
+
+  if (v && typeof v === 'object') {
+    if (Array.isArray(v.content)) return contentToHtml(v.content)
+    if (typeof v.text === 'string' || typeof v.content === 'string') return contentToHtml(v)
+    if (v.message) return contentToHtml(v.message.content || v.message.text || v.message)
+    if (v.result && v.result.content != null) return contentToHtml(v.result.content)
+    if (v.content && typeof v.content === 'object') return contentToHtml(v.content)
+    return renderJson(v)
+  }
+
   // if looks like JSON
   try {
     const parsed = JSON.parse(v)
-    return `<div class="__code_placeholder" data-lang="json" data-raw="${escapeHtml(JSON.stringify(parsed, null, 2))}"></div>`
+    return `<div class="__code_placeholder" data-lang="json" data-raw="${escapeAttribute(JSON.stringify(parsed, null, 2))}"></div>`
   } catch (e) {
     // fallback: render as text or markdown
     const str = String(v)
@@ -231,7 +255,7 @@ function renderToolResult(c) {
     }
 
     if (isCodeLike(str)) {
-      return `<div class="__code_placeholder" data-lang="" data-raw="${escapeHtml(str)}"></div>`
+      return `<div class="__code_placeholder" data-lang="" data-raw="${escapeAttribute(str)}"></div>`
     }
 
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
@@ -242,6 +266,46 @@ function renderToolResult(c) {
 
     return '<pre class="tool-result">' + escaped + '</pre>'
   }
+}
+
+function renderThinking(c) {
+  const thinkingText = typeof c.thinking === 'string' ? c.thinking.trim() : ''
+  if (!thinkingText) {
+    return '<div class="thinking-block thinking-block-placeholder"><span class="thinking-placeholder-label">thinking...</span></div>'
+  }
+
+  const renderer = createCustomMarkdownRenderer()
+  const thinkingHtml = marked.parse(escapeHtml(String(thinkingText)), { renderer })
+  return '<div class="thinking-block">' + thinkingHtml + '</div>'
+}
+
+function formatDuration(durationMs) {
+  const duration = Number(durationMs)
+  if (!Number.isFinite(duration) || duration <= 0) return ''
+  const seconds = duration / 1000
+  return `${seconds >= 10 ? seconds.toFixed(0) : seconds.toFixed(1).replace(/\.0$/, '')}s`
+}
+
+function renderAgentResult(c) {
+  const result = c.toolUseResult || {}
+  const badges = ['Subagent result']
+
+  if (result.agentType) badges.push(String(result.agentType))
+  if (result.status) badges.push(String(result.status))
+  if (Number.isFinite(result.totalToolUseCount)) badges.push(`${result.totalToolUseCount} tools`)
+
+  const duration = formatDuration(result.totalDurationMs)
+  if (duration) badges.push(duration)
+
+  const bodySource = result.content != null ? result.content : c.content
+  const bodyHtml = contentToHtml(bodySource)
+  const agentId = result.agentId ? `<div class="agent-result-id">Agent ${escapeHtml(String(result.agentId))}</div>` : ''
+  const prompt = typeof result.prompt === 'string' ? result.prompt.trim() : ''
+  const promptHtml = prompt
+    ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(prompt)}</pre></details>`
+    : ''
+
+  return `<div class="agent-result"><div class="agent-result-meta">${badges.map(item => `<span class="agent-result-badge">${escapeHtml(item)}</span>`).join('')}</div>${agentId}${promptHtml}<div class="agent-result-body">${bodyHtml || '<div class="empty-tool-result">(no output)</div>'}</div></div>`
 }
 
 function renderJson(c) {
@@ -264,7 +328,7 @@ function renderImage(c) {
   }
   if (!src) return '<span class="image-indicator">[Image - no source]</span>'
   const disablePreview = props.disableImagePreview ? 'true' : 'false'
-  return `<div class="__image_placeholder" data-src="${escapeHtml(src)}" data-disable-preview="${disablePreview}"></div>`
+  return `<div class="__image_placeholder" data-src="${escapeAttribute(src)}" data-disable-preview="${disablePreview}"></div>`
 }
 
 function renderMarkdown(c) {
@@ -400,7 +464,7 @@ function renderWriteTool(c) {
 }
 
 function contentToHtml(c) {
-  if (Array.isArray(c)) return c.map(contentToHtml).join('<br/>')
+  if (Array.isArray(c)) return c.map(contentToHtml).filter(Boolean).join('<br/>')
 
   // If it's a plain string, check special cases first (interruptions/commands)
   if (typeof c === 'string') {
@@ -423,6 +487,8 @@ function contentToHtml(c) {
     return `<div class="interruption">- user interruption -</div>`
   }
 
+  if (c.toolUseResult) return renderAgentResult(c)
+
   const t = c.type || (c.message && c.message.type) || null
   if (t === 'text' || t === 'message' || t === 'paragraph') return renderPlain(c)
   if (t === 'code' || t === 'program' || c.language) return renderCode(c)
@@ -433,12 +499,7 @@ function contentToHtml(c) {
   }
   // thinking block
   if (c.type === 'thinking' || t === 'thinking') {
-    const thinkingText = c.thinking || ''
-    if (!thinkingText) return ''
-    
-    const renderer = createCustomMarkdownRenderer()
-    const thinkingHtml = marked.parse(escapeHtml(String(thinkingText)), { renderer })
-    return '<div class="thinking-block">' + thinkingHtml + '</div>'
+    return renderThinking(c)
   }
   // ExitPlanMode tool
   if ((c.name === 'ExitPlanMode' || c.toolName === 'ExitPlanMode' || (c.message && c.message.name === 'ExitPlanMode'))) {
@@ -488,9 +549,12 @@ function contentToHtml(c) {
 
   // fallback: if has content array, render recursively
   if (c.content && Array.isArray(c.content)) return contentToHtml(c.content)
+  if (c.message) return contentToHtml(c.message.content || c.message.text || c.message)
+  if (c.result && c.result.content != null) return contentToHtml(c.result.content)
+  if (c.content && typeof c.content === 'object') return contentToHtml(c.content)
 
   // final fallback
-  return escapeHtml(c.text || c.content || JSON.stringify(c))
+  return renderJson(c)
 }
 
 const html = computed(() => contentToHtml(props.content))

@@ -1,6 +1,6 @@
 <template>
-  <div class="code-block" :style="{ margin: '16px 0' }">
-    <div class="code-block-header" style="display:flex;justify-content:space-between;align-items:center">
+  <div class="code-block" :class="{ 'has-inline-copy': !hasLanguage }">
+    <div v-if="hasLanguage" class="code-block-header">
       <span>{{ language }}</span>
       <ActionIconButton
         class="btn-icon"
@@ -13,6 +13,17 @@
         @click="handleCopy"
       />
     </div>
+    <ActionIconButton
+      v-else
+      class="btn-icon code-block-inline-copy"
+      :style="{ padding: '4px', color: copied ? '#10b981' : 'var(--muted-foreground)' }"
+      icon="copy"
+      :active="copied"
+      active-icon="check"
+      label="Copy code"
+      active-label="Copied code"
+      @click="handleCopy"
+    />
     <div style="position:relative">
       <pre :class="['prism', { 'line-numbers': showLineNumbers }]" ref="preRef"><code :class="codeClass" v-html="highlighted"></code></pre>
     </div>
@@ -33,6 +44,7 @@ const props = defineProps({ language: { type: String, default: '' }, value: { ty
 const copied = ref(false)
 const preRef = ref(null)
 
+const hasLanguage = computed(() => Boolean(props.language && props.language.trim()))
 const showLineNumbers = computed(() => props.value.split('\n').length > 5)
 const codeClass = computed(() => (props.language ? `language-${props.language}` : ''))
 
@@ -67,10 +79,20 @@ async function handleCopy() {
 </script>
 
 <style scoped>
-.code-block { background: transparent }
-.code-block-header { font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px }
+.code-block { background: transparent; position: relative; margin: 8px 0 }
+.code-block-header { display:flex; justify-content:space-between; align-items:center; font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px }
+.code-block-inline-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  backdrop-filter: blur(4px);
+}
 .btn-icon { border-radius: 6px }
 .pre { overflow: auto }
 .prism { padding: 12px; border-radius: 6px; background: var(--code-bg, #f5f5f7); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace; font-size: 13px; line-height: 1.5 }
+.has-inline-copy .prism { padding-right: 44px; }
 .line-numbers { counter-reset: linenumber }
 </style>

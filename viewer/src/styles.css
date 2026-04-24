@@ -226,6 +226,78 @@ h1 { font-size: 20px }
   padding: 8px;
 }
 
+.thinking-block-placeholder {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.thinking-placeholder-label {
+  color: #7c3aed;
+  font-style: italic;
+}
+
+.agent-result {
+  margin: 4px 0;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 6px;
+  background: #f8fbff;
+  padding: 10px;
+}
+
+.agent-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.agent-result-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-result-id {
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+}
+
+.agent-result-prompt {
+  margin-bottom: 8px;
+}
+
+.agent-result-prompt summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-result-prompt-text {
+  margin: 8px 0 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(2, 6, 23, 0.08);
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+
+.agent-result-body > :first-child {
+  margin-top: 0;
+}
+
+.agent-result-body > :last-child {
+  margin-bottom: 0;
+}
+
 /* Element Plus Image Viewer - darker background for better contrast */
 .el-image-viewer__mask {
   background-color: rgba(0, 0, 0, 0.85) !important;

@@ -9,7 +9,9 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:viewer\"",
     "restart": "concurrently --kill-others-on-fail --restart-tries 3 \"npm run dev:server\" \"npm run dev:viewer\"",
     "start:server": "cd server && npm start",
+    "start:app": "node server\\launcher.js",
     "build:viewer": "cd viewer && npm run build",
+    "package:exe": "node scripts\\package-exe.mjs",
     "install:all": "npm install && cd server && npm install && cd ../viewer && npm install",
     "test": "cd server && npm test"
   },
