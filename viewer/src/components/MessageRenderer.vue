@@ -602,6 +602,71 @@ function contentToHtml(c) {
   if ((c.name === 'Read' || c.toolName === 'Read' || (c.action && c.action === 'read') || (c.message && c.message.name === 'Read') || (c.type === 'read'))) {
     return renderReadTool(c)
   }
+  // Edit tool
+  if (c.name === 'Edit' || (c.message && c.message.name === 'Edit')) {
+    const fp = (c.input && c.input.file_path) || ''
+    return `<div class="copilot-tool-label edit-tool"><span class="tool-icon">&#9998;</span> Edit: <code>${escapeHtml(fp)}</code></div>`
+  }
+  // Glob tool
+  if (c.name === 'Glob' || (c.message && c.message.name === 'Glob')) {
+    const pattern = (c.input && c.input.pattern) || ''
+    const searchPath = (c.input && c.input.path) || ''
+    const args = [pattern ? `pattern: "${escapeHtml(pattern)}"` : '', searchPath ? `path: ${escapeHtml(searchPath)}` : ''].filter(Boolean).join(', ')
+    return `<div class="copilot-tool-label glob-tool"><span class="tool-icon">*</span> Glob: ${args}</div>`
+  }
+  // WebSearch tool
+  if (c.name === 'WebSearch' || (c.message && c.message.name === 'WebSearch')) {
+    const query = (c.input && c.input.query) || (c.input && c.input.prompt) || ''
+    return `<div class="copilot-tool-label web-search-tool"><span class="tool-icon">&#128269;</span> Search: "${escapeHtml(query)}"</div>`
+  }
+  // AskUserQuestion tool
+  if (c.name === 'AskUserQuestion' || (c.message && c.message.name === 'AskUserQuestion')) {
+    const questions = c.input && c.input.questions
+    if (!Array.isArray(questions) || questions.length === 0) return ''
+    const q = questions[0]
+    const header = q.header ? `<span class="ask-header">${escapeHtml(q.header)}</span> ` : ''
+    const opts = Array.isArray(q.options) ? q.options.map(o => `<span class="ask-option">${escapeHtml(o.label)}</span>`).join(' ') : ''
+    return `<div class="copilot-tool-label ask-user-tool"><span class="tool-icon">&#10067;</span> ${header}${escapeHtml(q.question || '')}${opts ? '<div class="ask-options">' + opts + '</div>' : ''}</div>`
+  }
+  // Agent tool (subagent spawn)
+  if (c.name === 'Agent' || (c.message && c.message.name === 'Agent')) {
+    const desc = (c.input && c.input.description) || ''
+    const agentType = (c.input && c.input.subagent_type) || ''
+    const badges = ['Subagent']
+    if (agentType) badges.push(agentType)
+    const badgesHtml = badges.map(b => `<span class="agent-result-badge">${escapeHtml(b)}</span>`).join('')
+    const promptText = (c.input && c.input.prompt) || ''
+    const promptHtml = promptText
+      ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(promptText.substring(0, 500))}</pre></details>`
+      : ''
+    return `<div class="agent-result"><div class="agent-result-meta">${badgesHtml}</div>${desc ? `<div class="agent-desc">${escapeHtml(desc)}</div>` : ''}${promptHtml}</div>`
+  }
+  // Skill tool
+  if (c.name === 'Skill' || (c.message && c.message.name === 'Skill')) {
+    const skillName = (c.input && c.input.skill) || ''
+    const args = (c.input && c.input.args) || ''
+    return `<div class="copilot-tool-label skill-tool"><span class="tool-icon">&#9889;</span> Skill: <code>/${escapeHtml(skillName)}</code>${args ? ` ${escapeHtml(args.substring(0, 100))}` : ''}</div>`
+  }
+  // EnterPlanMode tool
+  if (c.name === 'EnterPlanMode' || (c.message && c.message.name === 'EnterPlanMode')) {
+    return '<div class="plan-mode-indicator">&#128204; Entering plan mode...</div>'
+  }
+  // TaskCreate tool
+  if (c.name === 'TaskCreate' || (c.message && c.message.name === 'TaskCreate')) {
+    const subject = (c.input && c.input.subject) || ''
+    return `<div class="task-tool-label"><span class="tool-icon">&#9745;</span> Task: ${escapeHtml(subject)}</div>`
+  }
+  // TaskUpdate tool
+  if (c.name === 'TaskUpdate' || (c.message && c.message.name === 'TaskUpdate')) {
+    const status = (c.input && c.input.status) || ''
+    const subject = (c.input && c.input.subject) || ''
+    return `<div class="task-tool-label"><span class="tool-icon">&#9998;</span> Task ${escapeHtml(status)}${subject ? ': ' + escapeHtml(subject) : ''}</div>`
+  }
+  // TaskOutput tool
+  if (c.name === 'TaskOutput' || (c.message && c.message.name === 'TaskOutput')) {
+    const taskId = (c.input && c.input.task_id) || ''
+    return `<div class="task-tool-label"><span class="tool-icon">&#128196;</span> Task output: ${escapeHtml(taskId)}</div>`
+  }
   if (t === 'image') return renderImage(c)
   if (t === 'json' || t === 'object') return renderJson(c)
   if (t === 'markdown') return renderMarkdown(c)
@@ -628,7 +693,13 @@ function contentToHtml(c) {
   if (c.result && c.result.content != null) return contentToHtml(c.result.content)
   if (c.content && typeof c.content === 'object') return contentToHtml(c.content)
 
-  // final fallback
+  // final fallback - unknown block detection
+  // If the object has a recognizable type or name, show compact label instead of JSON dump
+  if (t || c.name) {
+    const identifier = c.name || t
+    return `<div class="unknown-block">Unknown block: ${escapeHtml(String(identifier))}</div>`
+  }
+  // Truly unknown structure - show full JSON
   return renderJson(c)
 }
 
