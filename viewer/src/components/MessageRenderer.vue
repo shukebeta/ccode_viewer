@@ -463,6 +463,78 @@ function renderWriteTool(c) {
   return `<div class="write-tool write-tool-markdown">${summary}<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div></div>`
 }
 
+// Render Copilot-specific tool blocks that have no Claude Code equivalent
+function renderCopilotTool(c) {
+  const name = c._copilotToolName
+  const input = c.input || {}
+
+  switch (name) {
+    case 'report_intent':
+      return '' // Hidden - intent logging is noise
+
+    case 'apply_patch': {
+      const patch = input.patch || ''
+      if (!patch) return ''
+      const lines = patch.split('\n')
+      const summary = lines.find(l => l.startsWith('*** ')) || 'Patch applied'
+      return `<details class="apply-patch-tool"><summary class="apply-patch-summary">${escapeHtml(summary)}</summary><pre class="apply-patch-body"><code>${escapeHtml(patch)}</code></pre></details>`
+    }
+
+    case 'edit': {
+      const fp = input.file_path || ''
+      return `<div class="copilot-tool-label edit-tool"><span class="tool-icon">&#9998;</span> Edit: <code>${escapeHtml(fp)}</code></div>`
+    }
+
+    case 'glob': {
+      const pattern = input.pattern || ''
+      const searchPath = input.path || ''
+      const args = [pattern ? `pattern: "${escapeHtml(pattern)}"` : '', searchPath ? `path: ${escapeHtml(searchPath)}` : ''].filter(Boolean).join(', ')
+      return `<div class="copilot-tool-label glob-tool"><span class="tool-icon">*</span> Glob: ${args}</div>`
+    }
+
+    case 'web_search': {
+      const query = input.query || ''
+      return `<div class="copilot-tool-label web-search-tool"><span class="tool-icon">&#128269;</span> Search: "${escapeHtml(query)}"</div>`
+    }
+
+    case 'sql': {
+      const desc = input.description || ''
+      const query = input.query || ''
+      const label = desc || (query ? query.substring(0, 60) + '...' : 'SQL query')
+      return `<div class="copilot-tool-label sql-tool"><span class="tool-icon">&#128451;</span> SQL: ${escapeHtml(label)}</div>`
+    }
+
+    case 'ask_user': {
+      const question = input.question || ''
+      return `<div class="copilot-tool-label ask-user-tool"><span class="tool-icon">&#10067;</span> Asking: ${escapeHtml(question)}</div>`
+    }
+
+    case 'task': {
+      const desc = input.description || ''
+      const taskName = input.name || ''
+      const agentType = input.agent_type || ''
+      const badges = ['Subagent task']
+      if (agentType) badges.push(agentType)
+      if (taskName) badges.push(taskName)
+      const badgesHtml = badges.map(b => `<span class="agent-result-badge">${escapeHtml(b)}</span>`).join('')
+      const promptText = input.prompt || ''
+      const promptHtml = promptText
+        ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(promptText.substring(0, 500))}</pre></details>`
+        : ''
+      return `<div class="agent-result"><div class="agent-result-meta">${badgesHtml}</div>${promptHtml}</div>`
+    }
+
+    case 'read_agent': {
+      const agentId = input.agent_id || ''
+      return `<div class="copilot-tool-label"><span class="tool-icon">&#128196;</span> Reading agent: ${escapeHtml(agentId)}</div>`
+    }
+
+    default:
+      // Unknown copilot block - compact label instead of full JSON dump
+      return `<div class="unknown-block">Unknown block: ${escapeHtml(name)}</div>`
+  }
+}
+
 function contentToHtml(c) {
   if (Array.isArray(c)) return c.map(contentToHtml).filter(Boolean).join('<br/>')
 
@@ -546,6 +618,9 @@ function contentToHtml(c) {
     const cmd = m && m[1] ? m[1].trim() : ''
     return `<div class="command-msg">command: ${escapeHtml(cmd.startsWith('/') ? cmd : '/' + cmd)}</div>`
   }
+
+  // Copilot-specific tool renderers
+  if (c._copilotToolName) return renderCopilotTool(c)
 
   // fallback: if has content array, render recursively
   if (c.content && Array.isArray(c.content)) return contentToHtml(c.content)

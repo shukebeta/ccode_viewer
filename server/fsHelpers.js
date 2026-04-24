@@ -647,8 +647,187 @@ async function readSessionFile(filePath) {
 
 module.exports = { getProjects, getSessions, readSessionFile, deleteSession }
 
+function mapCopilotToolName(name) {
+  const map = {
+    'bash': 'Bash', 'read_bash': 'Bash', 'write_bash': 'Bash', 'stop_bash': 'Bash',
+    'view': 'Read', 'create': 'Write',
+    'edit': 'Edit', 'grep': 'Grep', 'rg': 'Grep', 'glob': 'Glob',
+    'report_intent': 'ReportIntent', 'apply_patch': 'ApplyPatch',
+    'sql': 'Sql', 'ask_user': 'AskUser', 'task': 'Task',
+    'web_search': 'WebSearch', 'read_agent': 'ReadAgent'
+  }
+  return map[name] || name
+}
+
+function mapCopilotToolInput(toolName, args) {
+  if (!args) return {}
+  if (typeof args === 'string') {
+    if (toolName === 'apply_patch') return { patch: args }
+    return { raw: args }
+  }
+  switch (toolName) {
+    case 'bash': case 'read_bash': case 'write_bash': case 'stop_bash':
+      return { command: args.command || '', description: args.description || '' }
+    case 'view':
+      return { file_path: args.path || '' }
+    case 'create':
+      return { file_path: args.path || '', content: args.file_text || '' }
+    case 'edit':
+      return { file_path: args.path || '', old_str: args.old_str || '', new_str: args.new_str || '' }
+    case 'grep': case 'rg':
+      return { pattern: args.pattern || '', path: args.path || '', glob: args.glob || '', output_mode: args.output_mode || '' }
+    case 'glob':
+      return { pattern: args.pattern || '', path: args.path || '' }
+    case 'report_intent':
+      return { intent: args.intent || '' }
+    case 'sql':
+      return { query: args.query || '', description: args.description || '' }
+    case 'ask_user':
+      return { question: args.question || '' }
+    case 'task':
+      return { prompt: args.prompt || '', name: args.name || '', agent_type: args.agent_type || '', description: args.description || '' }
+    case 'web_search':
+      return { query: args.query || '' }
+    case 'read_agent':
+      return { agent_id: args.agent_id || '' }
+    default:
+      return args
+  }
+}
+
+function normalizeCopilotEvents(msgs) {
+  // Pass 1: Index tool starts and completes by toolCallId
+  const toolStarts = {}
+  const toolCompletes = {}
+  for (const m of msgs) {
+    if (m.type === 'tool.execution_start' && m.data) {
+      toolStarts[m.data.toolCallId] = { toolName: m.data.toolName, arguments: m.data.arguments }
+    }
+    if (m.type === 'tool.execution_complete' && m.data) {
+      toolCompletes[m.data.toolCallId] = { result: m.data.result, success: m.data.success }
+    }
+  }
+
+  // Pass 2: Group into interactions (per user.message), sub-group by turnId
+  const interactions = []
+  let current = null
+  for (const m of msgs) {
+    if (m.type === 'user.message') {
+      current = { user: m, turns: [] }
+      interactions.push(current)
+    } else if (!current) {
+      continue
+    } else if (m.type === 'assistant.turn_start') {
+      current.turns.push({ events: [] })
+    } else if (m.type === 'assistant.message' && current.turns.length > 0) {
+      current.turns[current.turns.length - 1].events.push(m)
+    }
+    // tool.execution_start/complete, turn_end, etc. handled via indexed maps
+  }
+
+  // Fallback: if no turn structure, group all assistant.message events after each user.message
+  if (interactions.length > 0 && interactions.every(i => i.turns.length === 0)) {
+    for (const interaction of interactions) {
+      interaction.turns.push({ events: [] })
+    }
+    let target = null
+    for (const m of msgs) {
+      if (m.type === 'user.message') {
+        target = interactions.find(i => i.user === m)
+      } else if (target && m.type === 'assistant.message') {
+        target.turns[0].events.push(m)
+      }
+    }
+  }
+
+  // Pass 3: Build normalized output
+  const users = []
+  const mapping = {}
+
+  for (const interaction of interactions) {
+    const userId = interaction.user.id || `u_${users.length}`
+    const userContent = interaction.user.data?.content || ''
+    users.push({
+      id: userId,
+      content: userContent,
+      preview: typeof userContent === 'string' ? userContent : '',
+      timestamp: interaction.user.timestamp,
+      rawType: 'user.message'
+    })
+
+    const contentBlocks = []
+    for (const turn of interaction.turns) {
+      for (const msg of turn.events) {
+        const data = msg.data || {}
+
+        // Thinking block
+        if (data.reasoningText && typeof data.reasoningText === 'string' && data.reasoningText.trim()) {
+          // Skip encrypted/encoded blobs
+          if (!/^[A-Za-z0-9+/=]+$/.test(data.reasoningText) || data.reasoningText.length < 40) {
+            contentBlocks.push({ type: 'thinking', thinking: data.reasoningText })
+          }
+        }
+
+        // Text content
+        if (data.content && typeof data.content === 'string' && data.content.trim()) {
+          contentBlocks.push({ type: 'text', text: data.content })
+        }
+
+        // Tool requests - merge with indexed start/complete data
+        if (Array.isArray(data.toolRequests)) {
+          for (const tr of data.toolRequests) {
+            const callId = tr.toolCallId
+            const start = toolStarts[callId]
+            const complete = toolCompletes[callId]
+            const originalName = start?.toolName || tr.name
+            const mappedName = mapCopilotToolName(originalName)
+            const args = start?.arguments || tr.arguments
+
+            contentBlocks.push({
+              type: 'tool_use',
+              id: callId,
+              name: mappedName,
+              input: mapCopilotToolInput(originalName, args),
+              _copilotToolName: originalName
+            })
+
+            if (complete) {
+              const resultContent = complete.result?.detailedContent || complete.result?.content || ''
+              contentBlocks.push({
+                type: 'tool_result',
+                tool_use_id: callId,
+                content: resultContent,
+                _copilotSuccess: complete.success
+              })
+            }
+          }
+        }
+      }
+    }
+
+    if (contentBlocks.length > 0) {
+      mapping[userId] = [{
+        id: `turn_${userId}`,
+        content: contentBlocks,
+        timestamp: interaction.turns[0]?.events[0]?.timestamp || interaction.user.timestamp,
+        raw: null
+      }]
+    } else {
+      mapping[userId] = []
+    }
+  }
+
+  return { users, mapping }
+}
+
 async function mapSessionMessages(filePath) {
   const msgs = await readSessionFile(filePath)
+
+  // Detect and route Copilot sessions
+  const isCopilot = (filePath.includes('.copilot') || filePath.includes('session-state'))
+    && msgs.length > 0 && msgs[0].type === 'session.start'
+  if (isCopilot) return normalizeCopilotEvents(msgs)
+
   const users = []
   const assistants = []
 

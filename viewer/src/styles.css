@@ -302,3 +302,66 @@ h1 { font-size: 20px }
 .el-image-viewer__mask {
   background-color: rgba(0, 0, 0, 0.85) !important;
 }
+
+/* Copilot tool renderers */
+.copilot-tool-label {
+  font-size: 13px;
+  color: #111;
+  background: #f6f7fb;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(2,6,23,0.04);
+  line-height: 1.4;
+}
+.copilot-tool-label .tool-icon {
+  margin-right: 4px;
+  opacity: 0.7;
+}
+.copilot-tool-label code {
+  background: rgba(0,0,0,0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.edit-tool { border-left: 3px solid #6366f1; }
+.sql-tool { border-left: 3px solid #0ea5e9; background: #f0f7fb; }
+.ask-user-tool { border-left: 3px solid #f59e0b; background: #fef9ee; font-style: italic; }
+.glob-tool { border-left: 3px solid #10b981; }
+.web-search-tool { border-left: 3px solid #8b5cf6; }
+
+.apply-patch-tool {
+  margin: 4px 0;
+  border: 1px solid rgba(2,6,23,0.08);
+  border-radius: 6px;
+  background: #f6f7fb;
+}
+.apply-patch-summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #374151;
+}
+.apply-patch-body {
+  margin: 0;
+  padding: 8px 10px;
+  background: #fff;
+  border-top: 1px solid rgba(2,6,23,0.06);
+  font-size: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.unknown-block {
+  font-size: 12px;
+  color: #9ca3af;
+  background: #f9fafb;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px dashed #d1d5db;
+  font-style: italic;
+}
+
+.tool-result-error {
+  border-left: 3px solid #ef4444;
+}
