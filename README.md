@@ -1,6 +1,8 @@
-# Claude Code Viewer
+# Rewind
 
-A web-based viewer for Claude Code CLI sessions.
+**Navigate and explore your AI coding sessions**
+
+Browse, copy, and revisit your Claude Code & Copilot conversation history. Clean markdown copy, infinite scroll, and real-time session monitoring — everything the terminal can't give you.
 
 ## Project Structure
 
@@ -43,12 +45,12 @@ Then open http://localhost:6174 in your browser.
 The app can be packaged as a **single Windows EXE** that opens a native desktop window and renders the viewer inside an embedded **WebView2** control.
 
 - The packaged EXE is a native Windows launcher with the app payload embedded inside it.
-- On first launch of a given build, it copies the app into `%LOCALAPPDATA%\ClaudeCodeViewer\builds\<build-id>`.
+- On first launch of a given build, it copies the app into `%LOCALAPPDATA%\Rewind\builds\<build-id>`.
 - It starts the bundled Node server as a child process and loads the viewer inside the desktop window.
 - Closing the desktop window shuts down the child server process as well.
 - It uses **one local port**, not separate 6173/6174 dev ports.
 - At launch it scans for a free port starting at **6173** and falls back to the next available port automatically.
-- Runtime logs are written under `%LOCALAPPDATA%\ClaudeCodeViewer\run\<instance-id>\`, and the latest run directory is recorded in `%LOCALAPPDATA%\ClaudeCodeViewer\run\latest-instance.txt`.
+- Runtime logs are written under `%LOCALAPPDATA%\Rewind\run\<instance-id>\`, and the latest run directory is recorded in `%LOCALAPPDATA%\Rewind\run\latest-instance.txt`.
 - The desktop window also includes a hover-only **Open in Browser** button in the top-right corner if you want to inspect the same local session in your normal browser.
 
 ### Local packaging
@@ -63,7 +65,7 @@ npm run package:exe
 This produces:
 
 ```bash
-dist/ccode-viewer-win-x64.exe
+dist/rewind-win-x64.exe
 dist/BUILD-INFO.txt
 ```
 

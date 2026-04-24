@@ -1,7 +1,6 @@
 <template>
   <div class="app-root">
-    <div class="app-title">Claude Code Conversation Console</div>
-    <div class="app-header">
+<div class="app-header">
       <ProjectSelector
         :selected="project"
         @select-project="onSelectProject"

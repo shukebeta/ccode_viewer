@@ -12,10 +12,10 @@ const appDir = path.join(packageSrcDir, 'app')
 const publicDir = path.join(appDir, 'server', 'public')
 const launcherSrcDir = path.join(distDir, 'launcher-src')
 const launcherPublishDir = path.join(distDir, 'launcher-publish')
-const launcherProjectPath = path.join(launcherSrcDir, 'CCodeViewerLauncher.csproj')
+const launcherProjectPath = path.join(launcherSrcDir, 'RewindLauncher.csproj')
 const launcherProgramPath = path.join(launcherSrcDir, 'Program.cs')
 const payloadZipPath = path.join(launcherSrcDir, 'AppPayload.zip')
-const packageOutput = path.join(distDir, 'ccode-viewer-win-x64.exe')
+const packageOutput = path.join(distDir, 'rewind-win-x64.exe')
 const buildInfoPath = path.join(distDir, 'BUILD-INFO.txt')
 const buildId = `${(process.env.GITHUB_SHA || 'local').slice(0, 12)}-${new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').replace('T', '-')}`
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
@@ -69,14 +69,14 @@ function createPayloadZip(sourceDir, zipPath) {
 
 function getBuildInfo() {
   return [
-    'Claude Code Viewer Windows package',
+    'Rewind — Navigate and explore your AI coding sessions',
     `Build ID: ${buildId}`,
     `Built from: ${process.env.GITHUB_SHA || 'local-working-copy'}`,
     `Generated at: ${new Date().toISOString()}`,
     '',
     'Launch behavior:',
     '- Bundles a native Windows desktop host with the app payload embedded inside it',
-    '- Extracts the payload into %LOCALAPPDATA%\\ClaudeCodeViewer\\builds\\<build-id>',
+    '- Extracts the payload into %LOCALAPPDATA%\\Rewind\\builds\\<build-id>',
     '- Starts the embedded Express server as a child Node process',
     '- Renders the UI in an embedded WebView2 desktop window',
     '- Closing the desktop window shuts down the child server process'
@@ -89,8 +89,8 @@ function getLauncherProjectContents() {
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>ccode-viewer-win-x64</AssemblyName>
-    <RootNamespace>CCodeViewerLauncher</RootNamespace>
+    <AssemblyName>rewind-win-x64</AssemblyName>
+    <RootNamespace>RewindLauncher</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishSingleFile>true</PublishSingleFile>
@@ -102,7 +102,7 @@ function getLauncherProjectContents() {
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="${webView2Version}" />
-    <EmbeddedResource Include="AppPayload.zip" LogicalName="CCodeViewerLauncher.AppPayload.zip" />
+    <EmbeddedResource Include="AppPayload.zip" LogicalName="RewindLauncher.AppPayload.zip" />
   </ItemGroup>
 </Project>
 `
@@ -121,7 +121,7 @@ using Microsoft.Web.WebView2.WinForms;
 internal static class Program
 {
     private const string BuildId = "__BUILD_ID__";
-    private const string PayloadResourceName = "CCodeViewerLauncher.AppPayload.zip";
+    private const string PayloadResourceName = "RewindLauncher.AppPayload.zip";
 
     [STAThread]
     private static int Main()
@@ -144,8 +144,8 @@ internal static class Program
         {
             runtime.WriteBootstrapLog(ex);
             MessageBox.Show(
-                "Claude Code Viewer failed to start.\r\n\r\n" + ex.Message + "\r\n\r\nLogs: " + runtime.InstanceRunRoot,
-                "Claude Code Viewer",
+                "Rewind failed to start.\r\n\r\n" + ex.Message + "\r\n\r\nLogs: " + runtime.InstanceRunRoot,
+                "Rewind",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             return 1;
@@ -157,7 +157,7 @@ internal sealed class LauncherRuntime : IDisposable
 {
     private const int UrlWaitAttempts = 150;
     private static readonly TimeSpan UrlWaitDelay = TimeSpan.FromMilliseconds(200);
-    private const string PayloadResourceName = "CCodeViewerLauncher.AppPayload.zip";
+    private const string PayloadResourceName = "RewindLauncher.AppPayload.zip";
 
     public string InstallRoot { get; }
     public string BuildRoot { get; }
@@ -182,7 +182,7 @@ internal sealed class LauncherRuntime : IDisposable
     {
         InstallRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "ClaudeCodeViewer");
+            "Rewind");
         BuildRoot = Path.Combine(InstallRoot, "builds");
         AppRoot = Path.Combine(BuildRoot, buildId);
         RunRoot = Path.Combine(InstallRoot, "run");
@@ -424,7 +424,7 @@ internal sealed class HostForm : Form
     {
         _runtime = runtime;
 
-        Text = "Claude Code Viewer";
+        Text = "Rewind — Navigate and explore your AI coding sessions";
         Width = 1440;
         Height = 920;
         MinimumSize = new Size(1024, 720);
@@ -448,7 +448,7 @@ internal sealed class HostForm : Form
         _statusLabel = new Label
         {
             Dock = DockStyle.Fill,
-            Text = "Starting Claude Code Viewer...",
+            Text = "Starting Rewind...",
             TextAlign = ContentAlignment.MiddleCenter
         };
 
@@ -605,7 +605,7 @@ async function main() {
     '-o', launcherPublishDir
   ])
 
-  await copyFile(path.join(launcherPublishDir, 'ccode-viewer-win-x64.exe'), packageOutput)
+  await copyFile(path.join(launcherPublishDir, 'rewind-win-x64.exe'), packageOutput)
 }
 
 main().catch((err) => {

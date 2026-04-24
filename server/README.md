@@ -1,6 +1,6 @@
-# Claude Code Viewer - Server
+# Rewind — Server
 
-Express API server for accessing Claude Code CLI session data.
+Express API server for accessing AI coding session data.
 
 ## Quick Start
 

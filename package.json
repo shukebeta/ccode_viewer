@@ -1,8 +1,8 @@
 {
-  "name": "ccode_viewer",
+  "name": "rewind",
   "version": "0.1.0",
   "private": true,
-  "description": "Viewer for Claude Code CLI sessions",
+  "description": "Navigate and explore your AI coding sessions",
   "scripts": {
     "dev:server": "cd server && npm run dev",
     "dev:viewer": "cd viewer && npm run dev",

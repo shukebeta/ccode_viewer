@@ -1,6 +1,6 @@
-# Claude Code Viewer - Web Interface
+# Rewind — Web Interface
 
-Vue.js web interface for viewing Claude Code CLI sessions.
+Vue.js web interface for navigating and exploring AI coding sessions.
 
 ## Quick Start
 

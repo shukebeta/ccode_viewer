@@ -76,7 +76,7 @@ async function main() {
     fs.writeFileSync(process.env.CCODE_VIEWER_URL_FILE, url, 'utf8')
   }
 
-  console.log(`Claude Code Viewer is running at ${url}`)
+  console.log(`Rewind is running at ${url}`)
   openBrowser(url)
 
   const shutdown = () => {

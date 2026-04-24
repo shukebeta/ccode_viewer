@@ -44,7 +44,7 @@ jobs:
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:
-          name: ccode-viewer-win-x64
+          name: rewind-win-x64
           path: |
-            dist/ccode-viewer-win-x64.exe
+            dist/rewind-win-x64.exe
             dist/BUILD-INFO.txt
