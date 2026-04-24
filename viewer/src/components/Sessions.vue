@@ -20,6 +20,9 @@
               <span v-if="s.source === 'gcopilot'" :class="['source-badge', s.source]">
                 {{ sourceLabel(s.source) }}
               </span>
+              <span v-if="s.branches && s.branches.length" class="branch-badge">
+                {{ s.branches.length === 1 ? s.branches[0] : s.branches.join(', ') }}
+              </span>
             </div>
             <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
           </button>
@@ -174,4 +177,15 @@ export default {
 .session-time { font-weight:600; font-size:13px; margin-bottom:4px }
 .session-preview { color:var(--muted); font-size:13px }
 .muted { color:#888; font-size:12px; margin-left:6px }
+.branch-badge {
+  display: inline-block;
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  font-weight: 500;
+  font-family: monospace;
+}
 </style>

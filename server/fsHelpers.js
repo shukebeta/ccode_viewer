@@ -521,6 +521,7 @@ async function getSessions(projectName) {
         let messageCount = 0
         let totalCost = 0
         const recentMessages = []
+        const branches = new Set()
 
         for (const line of lines) {
           try {
@@ -530,6 +531,7 @@ async function getSessions(projectName) {
               if (!startTime || ts < startTime) startTime = ts
               if (!endTime || ts > endTime) endTime = ts
             }
+            if (data.gitBranch) branches.add(data.gitBranch)
             if (data.type === 'user' || data.type === 'assistant') {
               messageCount++
               let messageText = ''
@@ -581,7 +583,8 @@ async function getSessions(projectName) {
             totalCost,
             preview: recentMessages.join('\n').substring(0, 200),
             isAgent,
-            source: 'claudecode'
+            source: 'claudecode',
+            branches: [...branches]
           })
         }
       }
