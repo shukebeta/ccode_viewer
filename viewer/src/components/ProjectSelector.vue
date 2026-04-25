@@ -10,7 +10,7 @@
     <el-option
       v-for="p in projects"
       :key="p.id"
-      :label="displayFullLabel(p)"
+      :label="displayName(p)"
       :value="p.id"
     >
       <div class="project-option">
