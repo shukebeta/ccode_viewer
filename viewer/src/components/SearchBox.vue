@@ -11,8 +11,6 @@
         @input="onInput"
         @keydown.esc="clearSearch"
       />
-    </div>
-    <div class="search-actions">
       <button v-show="query.length > 0" class="clear-btn" @click="clearSearch" title="Clear search (Esc)">
         ✕
       </button>
@@ -93,7 +91,7 @@ export default {
 .search-input {
   width: 100%;
   max-width: none;
-  padding: var(--sp-2) var(--sp-2) var(--sp-2) 30px;
+  padding: var(--sp-2) 28px var(--sp-2) 30px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: 13px;
@@ -113,26 +111,22 @@ export default {
   color: var(--text-muted);
 }
 
-.search-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  flex-shrink: 0;
-}
-
 .loading { color: var(--info); font-style: italic; }
 .result-count { color: var(--success); font-weight: 500; }
 
 .clear-btn {
-  padding: 4px var(--sp-1);
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 4px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1;
-  position: relative;
   z-index: 20;
   transition: all var(--duration-fast) var(--ease-out);
 }
