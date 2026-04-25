@@ -81,9 +81,10 @@ if (!messageContentUtils) {
 }
 
 const { extractPlainText, getUserPreviewText, hasUserVisibleContent } = messageContentUtils
+import { AUTO_SELECT_FIRST_USER_ID } from '../constants'
+
 const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
 const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
-const AUTO_SELECT_FIRST_USER_ID = '__auto_first_user__'
 
 export default {
   components: { MessageRenderer, ActionIconButton },

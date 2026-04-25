@@ -45,8 +45,7 @@ import Sessions from './components/Sessions.vue'
 import SearchBox from './components/SearchBox.vue'
 import SearchResults from './components/SearchResults.vue'
 import TwoColumnViewer from './components/TwoColumnViewer.vue'
-
-const AUTO_SELECT_FIRST_USER_ID = '__auto_first_user__'
+import { AUTO_SELECT_FIRST_USER_ID } from './constants'
 
 export default {
   components: { ProjectSelector, Sessions, SearchBox, SearchResults, TwoColumnViewer },
