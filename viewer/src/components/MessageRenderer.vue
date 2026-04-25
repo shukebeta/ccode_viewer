@@ -271,12 +271,12 @@ function renderToolResult(c) {
 function renderThinking(c) {
   const thinkingText = typeof c.thinking === 'string' ? c.thinking.trim() : ''
   if (!thinkingText) {
-    return '<div class="thinking-block thinking-block-placeholder"><span class="thinking-placeholder-label">thinking...</span></div>'
+    return '<div class="thinking-block thinking-block-placeholder"><span class="thinking-placeholder-label">thinking…</span></div>'
   }
 
   const renderer = createCustomMarkdownRenderer()
   const thinkingHtml = marked.parse(escapeHtml(String(thinkingText)), { renderer })
-  return '<div class="thinking-block">' + thinkingHtml + '</div>'
+  return '<div class="thinking-block"><span class="thinking-placeholder-label">thinking…</span>' + thinkingHtml + '</div>'
 }
 
 function formatDuration(durationMs) {
@@ -829,35 +829,35 @@ const systemNote = computed(() => {
 .tool-result { background: var(--accent-light); padding: var(--sp-2); border-radius: var(--radius-sm); }
 .json-content { background: var(--bg); padding: var(--sp-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .image-content img { max-width: 100%; height: auto }
-.tool-use { border: 1px solid var(--border); padding: var(--sp-2); border-radius: var(--radius-md); margin-bottom: var(--sp-2); background: var(--card); }
+.tool-use { border: none; border-left: 2px solid var(--border-strong); padding: var(--sp-1) var(--sp-2); border-radius: 0; margin-bottom: var(--sp-1); background: transparent; }
 .tool-summary { display:flex; justify-content:space-between; align-items:center }
 .tool-summary .left { flex:1 }
 .tool-summary .meta { color: var(--text-muted); font-size: 12px }
-.tool-detail { margin-top: var(--sp-2); }
-.todo-container { border: 1px solid var(--border); padding: var(--sp-2); border-radius: var(--radius-md); background: var(--card); }
+.tool-detail { margin-top: var(--sp-1); }
+.todo-container { border: none; border-left: 2px solid var(--border-strong); padding: var(--sp-1) var(--sp-2); border-radius: 0; background: transparent; }
 .todo-list ul { padding-left: 20px; }
-.system-note { color: var(--text-muted); font-size: 12px; margin-top: var(--sp-2); display: none }
+.system-note { color: var(--text-muted); font-size: 11px; margin-top: var(--sp-1); display: none }
 .todo-list:hover + .system-note, .todo-container:hover .system-note { display: block }
 .interruption { color: var(--text-muted); font-style: italic; }
 .command-msg { color: var(--text-secondary); font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
 .read-summary {
   font-size: 13px;
-  color: var(--text);
-  background: var(--card);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--tool-read);
+  color: var(--text-secondary);
+  background: transparent;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 0;
+  border: none;
+  border-left: 2px solid var(--tool-read);
   font-family: var(--font-mono);
 }
 .grep-tool {
   font-size: 13px;
-  color: var(--text);
-  background: var(--card);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--tool-grep);
+  color: var(--text-secondary);
+  background: transparent;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 0;
+  border: none;
+  border-left: 2px solid var(--tool-grep);
   display: flex;
   align-items: center;
   gap: var(--sp-1);
@@ -906,22 +906,32 @@ const systemNote = computed(() => {
 .thinking-block code { font-family: var(--font-mono) !important; font-size: 0.9em !important; }
 /* ExitPlanMode styles */
 .exit-plan-mode {
-  background: var(--info-light) !important;
-  border: 1px solid rgba(79, 70, 229, 0.15) !important;
-  border-left: 3px solid var(--tool-plan) !important;
-  border-radius: var(--radius-md) !important;
-  padding: 12px !important;
-  margin: 8px 0 !important;
+  background: none !important;
+  border: none !important;
+  border-left: 2px solid var(--tool-plan) !important;
+  border-radius: 0 !important;
+  padding: 2px 0 2px var(--sp-3) !important;
+  margin: var(--sp-1) 0 !important;
 }
-.exit-plan-mode h1, .exit-plan-mode h2, .exit-plan-mode h3 { color: var(--info) !important; margin: 0.5rem 0 !important; }
-/* thinking-block styles */
+.exit-plan-mode h1, .exit-plan-mode h2, .exit-plan-mode h3 { color: var(--info) !important; margin: 0.3rem 0 !important; font-size: 0.95em; }
+/* thinking-block styles — blockquote style */
 .thinking-block {
-  background: rgba(124, 58, 237, 0.06) !important;
-  border: 1px solid rgba(124, 58, 237, 0.15) !important;
-  border-left: 3px solid #7c3aed !important;
-  border-radius: var(--radius-md) !important;
-  padding: 12px !important;
-  margin: 8px 0 !important;
+  background: none !important;
+  border: none !important;
+  border-left: 2px solid var(--text-muted) !important;
+  border-radius: 0 !important;
+  padding: 2px 0 2px var(--sp-3) !important;
+  margin: var(--sp-1) 0 !important;
+  color: var(--text-muted) !important;
+  font-size: 13px;
 }
-.thinking-block h1, .thinking-block h2, .thinking-block h3 { color: #7c3aed !important; margin: 0.5rem 0 !important; }
+.thinking-block h1, .thinking-block h2, .thinking-block h3 { color: var(--text-muted) !important; margin: 0.3rem 0 !important; font-size: 0.95em; }
+.thinking-placeholder-label {
+  display: block;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 11px;
+  margin-bottom: 2px;
+  opacity: 0.7;
+}
 </style>

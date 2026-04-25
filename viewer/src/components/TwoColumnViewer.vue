@@ -662,11 +662,11 @@ export default {
 .right li { margin-right: 8px; }
 pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; margin: 0; }
 
-/* compact dashed separator between assistant replies */
+/* light separator between assistant replies */
 .right ul li.assistant-item + li.assistant-item {
-  border-top: 1px dashed rgba(15, 23, 42, 0.14);
-  margin-top: 10px;
-  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
 }
 
 /* assistant card copy button */
@@ -674,8 +674,8 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 .assistant-full { min-width: 0; }
 .assistant-toolbar { position: absolute; top: 8px; right: 8px; z-index: 2; }
 /* Distinguish user and assistant messages with different backgrounds */
-.assistant-item[data-display="user"] .assistant-card { background: rgba(59, 130, 246, 0.04); border-left: 3px solid rgba(59, 130, 246, 0.3); }
-.assistant-item[data-display="assistant"] .assistant-card { background: rgba(255, 255, 255, 0.02); }
+.assistant-item[data-display="user"] .assistant-card { background: transparent; border-left: 2px solid rgba(59, 130, 246, 0.2); }
+.assistant-item[data-display="assistant"] .assistant-card { background: transparent; }
 .assistant-item.compact-entry .assistant-card { padding: 6px 10px; }
 .assistant-item.compact-entry .assistant-full > .message-renderer { line-height: 1.2; }
 .copy-btn { background: rgba(255,255,255,0.02); color: inherit; padding: 6px; border-radius: 6px }

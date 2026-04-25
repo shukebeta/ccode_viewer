@@ -78,8 +78,8 @@
   font-family: var(--font-mono);
   background: var(--code-bg);
   color: var(--code-text);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -107,11 +107,11 @@
 
 /* Write tool */
 .write-tool {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--tool-write);
-  border-radius: var(--radius-md);
-  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--tool-write);
+  border-radius: 0;
+  padding: var(--sp-1) var(--sp-2);
   margin: var(--sp-1) 0;
   white-space: normal;
 }
@@ -123,10 +123,10 @@
 }
 .write-tool-markdown .write-markdown-block {
   margin-top: var(--sp-1);
-  background: var(--success-light);
-  border: 1px solid rgba(5, 150, 105, 0.12);
-  border-radius: var(--radius-md);
-  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   white-space: normal;
   line-height: 1.4;
 }
@@ -153,10 +153,10 @@
 /* Skill content */
 .skill-content {
   margin: var(--sp-1) 0;
-  border: 1px solid rgba(124, 58, 237, 0.15);
-  border-left: 3px solid var(--tool-skill);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border: none;
+  border-left: 2px solid var(--tool-skill);
+  border-radius: 0;
+  background: transparent;
   overflow: hidden;
 }
 .skill-content-summary {
@@ -196,23 +196,18 @@
 
 /* Thinking block */
 .thinking-block-placeholder {
-  padding-top: var(--sp-2) !important;
-  padding-bottom: var(--sp-2) !important;
-}
-.thinking-placeholder-label {
-  color: #7c3aed;
-  font-style: italic;
-  font-size: 12px;
+  padding: 2px 0 2px var(--sp-3) !important;
+  border-left: 2px solid var(--text-muted) !important;
 }
 
 /* Agent result */
 .agent-result {
   margin: var(--sp-1) 0;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--tool-agent);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  padding: var(--sp-3);
+  border: none;
+  border-left: 2px solid var(--tool-agent);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--sp-1) var(--sp-2);
 }
 .agent-result-meta {
   display: flex;
@@ -275,12 +270,12 @@
 /* Copilot / Claude Code tool renderers */
 .copilot-tool-label {
   font-size: 13px;
-  color: var(--text);
-  background: var(--card);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+  background: transparent;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 0;
+  border: none;
+  border-left: 2px solid var(--border-strong);
   line-height: 1.4;
 }
 .copilot-tool-label .tool-icon {
@@ -297,16 +292,16 @@
 
 /* Tool type accent borders */
 .edit-tool { border-left-color: var(--tool-edit) !important; }
-.sql-tool { border-left-color: var(--tool-sql) !important; background: rgba(8, 145, 178, 0.04); }
-.ask-user-tool { border-left-color: var(--tool-ask) !important; background: rgba(217, 119, 6, 0.04); font-style: italic; }
+.sql-tool { border-left-color: var(--tool-sql) !important; }
+.ask-user-tool { border-left-color: var(--tool-ask) !important; font-style: italic; }
 .glob-tool { border-left-color: var(--tool-glob) !important; }
 .web-search-tool { border-left-color: var(--tool-search) !important; }
 
 .apply-patch-tool {
   margin: var(--sp-1) 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 .apply-patch-summary {
   cursor: pointer;
@@ -331,19 +326,19 @@
 .unknown-block {
   font-size: 12px;
   color: var(--text-muted);
-  background: var(--bg);
+  background: transparent;
   padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--radius-sm);
-  border: 1px dashed var(--border-strong);
+  border-radius: 0;
+  border: none;
+  border-left: 2px dashed var(--border-strong);
   font-style: italic;
 }
 
-.tool-result-error { border-left: 3px solid var(--danger); }
+.tool-result-error { border-left: 2px solid var(--danger); }
 
 /* Specific tool renderers */
 .skill-tool {
   border-left-color: var(--tool-skill) !important;
-  background: rgba(124, 58, 237, 0.04) !important;
 }
 .ask-user-tool .ask-header {
   font-weight: 600;
@@ -373,18 +368,19 @@
 .plan-mode-indicator {
   font-size: 13px;
   color: var(--tool-plan);
-  background: var(--info-light);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  background: transparent;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 0;
+  border: none;
+  border-left: 2px solid var(--tool-plan);
 }
 
 .task-tool-label {
   font-size: 13px;
-  color: var(--text);
-  background: var(--success-light);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(5, 150, 105, 0.15);
-  border-left: 3px solid var(--tool-task);
+  color: var(--text-secondary);
+  background: transparent;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 0;
+  border: none;
+  border-left: 2px solid var(--tool-task);
 }
