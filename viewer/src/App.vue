@@ -9,25 +9,29 @@
     </div>
     <div class="layout">
       <div class="sessions-panel" v-if="project">
-        <SearchBox
-          :resultCount="searchResults.length"
-          :loading="searchLoading"
-          @search="onSearch"
-        />
-        <SearchResults
-          v-if="searchQuery"
-          :results="searchResults"
-          :query="searchQuery"
-          @select-result="onSelectSearchResult"
-          @clear-search="clearSearch"
-        />
         <Sessions
-          v-else
           :project="project"
           :currentSessionFile="sessionFile"
           @select-session="onSelectSession"
           @sessions-loaded="onSessionsLoaded"
-        />
+        >
+          <template #search>
+            <SearchBox
+              :resultCount="searchResults.length"
+              :loading="searchLoading"
+              @search="onSearch"
+            />
+          </template>
+          <template #searchResults>
+            <SearchResults
+              v-if="searchQuery"
+              :results="searchResults"
+              :query="searchQuery"
+              @select-result="onSelectSearchResult"
+              @clear-search="clearSearch"
+            />
+          </template>
+        </Sessions>
       </div>
       <main class="main-panel">
         <TwoColumnViewer v-if="sessionFile" :file="sessionFile" :highlightUserId="highlightUserId" />

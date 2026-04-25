@@ -1,8 +1,10 @@
 <template>
   <div>
-    <h3 style="margin: 0 0 4px 0; font-size: 15px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text);">{{ displayProjectName }}</h3>
-    <div v-if="loading">Loading...</div>
-    <ul v-else class="sessions-list">
+    <h3 class="sessions-header">Sessions</h3>
+    <slot name="search"></slot>
+    <slot name="searchResults">
+      <div v-if="loading">Loading...</div>
+      <ul v-else class="sessions-list">
       <li v-for="s in sessions" :key="s.filePath" class="session-item">
         <div class="session-row">
           <button
@@ -30,6 +32,7 @@
         </div>
       </li>
     </ul>
+    </slot>
   </div>
 </template>
 
@@ -157,6 +160,14 @@ export default {
 </script>
 
 <style scoped>
+.sessions-header {
+  margin: 0 0 var(--sp-2) 0;
+  padding: var(--sp-2) 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 2px solid var(--border);
+}
 .sessions-list { list-style:none; padding:0; margin:var(--sp-2) 0 }
 .session-item { margin-bottom:var(--sp-1) }
 .session-card {
