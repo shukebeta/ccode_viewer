@@ -88,40 +88,48 @@ export default {
 
 <style scoped>
 .search-results {
-  padding: 8px 0;
+  padding: var(--sp-2) 0;
 }
 
 .results-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--sp-3);
 }
 
 .results-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 .clear-search-btn {
-  padding: 6px 12px;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 13px;
-  color: #374151;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .clear-search-btn:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
+  background: var(--card-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .empty-state {
   text-align: center;
-  padding: 32px 16px;
-  color: #6b7280;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .results-list {
@@ -131,60 +139,57 @@ export default {
 }
 
 .result-item {
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-1);
 }
 
 .result-card {
   display: block;
   width: 100%;
   text-align: left;
-  border: 1px solid #e5e7eb;
-  background: white;
-  padding: 12px;
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .result-card:hover {
-  background: #f9fafb;
-  border-color: #3b82f6;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--card-hover);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
 }
 
 .result-card.selected {
-  background: rgba(37, 99, 235, 0.08);
-  border-color: rgba(37, 99, 235, 0.3);
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+  background: var(--accent-muted);
+  border-color: rgba(180, 83, 9, 0.25);
+  box-shadow: var(--shadow-md);
 }
 
 .result-meta {
   display: flex;
-  gap: 12px;
+  gap: var(--sp-3);
   font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 6px;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-1);
 }
 
-.result-time {
-  font-weight: 600;
-}
+.result-time { font-weight: 600; color: var(--text-secondary); }
 
 .result-session {
-  font-family: monospace;
-  background: #f3f4f6;
-  padding: 2px 6px;
-  border-radius: 3px;
+  font-family: var(--font-mono);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
 }
 
-.result-replies {
-  color: #059669;
-}
+.result-replies { color: var(--success); font-weight: 500; }
 
 .result-preview {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
-  color: #1f2937;
+  color: var(--text);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -192,10 +197,10 @@ export default {
 }
 
 .result-preview :deep(mark) {
-  background: #fef3c7;
+  background: var(--accent-light);
   color: #92400e;
-  padding: 2px 0;
+  padding: 1px 2px;
   border-radius: 2px;
-  font-weight: 500;
+  font-weight: 600;
 }
 </style>

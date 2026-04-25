@@ -1,45 +1,189 @@
-/* Light theme for claude-viteapp */
-:root{
-  --bg: #f7fafc;
-  --card: #ffffff;
-  --muted: #6b7280;
-  --accent: #2563eb;
-  --success: #059669;
-  --inprogress: #d97706;
-  --danger: #dc2626;
-  --code-bg: #f3f4f6;
+/* ============================================
+   Rewind — "Warm Workshop" Design System
+   ============================================
+   A warm, refined palette for a developer tool
+   that feels crafted, not generated.
+   ============================================ */
+
+:root {
+  /* Surface layers */
+  --bg:          #f5f3f0;
+  --bg-subtle:   #ece9e4;
+  --card:        #ffffff;
+  --card-hover:  #fafaf9;
+  --card-active: #f0eeeb;
+
+  /* Text */
+  --text:          #1c1917;
+  --text-secondary:#57534e;
+  --text-muted:    #a8a29e;
+  --text-inverse:  #fafaf9;
+
+  /* Accents */
+  --accent:        #b45309;   /* warm amber-700 */
+  --accent-light:  #fef3c7;   /* amber-100 */
+  --accent-muted:  rgba(180, 83, 9, 0.12);
+  --info:          #4f46e5;   /* indigo-600 */
+  --info-light:    #eef2ff;
+  --info-muted:    rgba(79, 70, 229, 0.10);
+  --success:       #059669;
+  --success-light: #ecfdf5;
+  --danger:        #dc2626;
+
+  /* Borders */
+  --border:        #e7e5e4;
+  --border-strong: #d6d3d1;
+  --border-light:  rgba(231, 229, 228, 0.6);
+
+  /* Shadows */
+  --shadow-sm:   0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-md:   0 2px 8px rgba(28, 25, 23, 0.06), 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-lg:   0 4px 16px rgba(28, 25, 23, 0.08), 0 2px 4px rgba(28, 25, 23, 0.04);
+  --shadow-focus:0 0 0 3px rgba(180, 83, 9, 0.18);
+
+  /* Code */
+  --code-bg:      #1c1917;
+  --code-text:    #e7e5e4;
+
+  /* Typography */
+  --font-sans:    'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radii */
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+  --radius-xl:    16px;
+
+  /* Transitions */
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast:120ms;
+  --duration-norm:200ms;
+
+  /* Spacing (4px grid) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10:40px;
+
+  /* Layout */
+  --sidebar-width: 320px;
+  --header-height: 52px;
+
+  /* Tool accent colors — curated warm palette */
+  --tool-bash:      #b45309;
+  --tool-edit:      #6366f1;
+  --tool-read:      #0891b2;
+  --tool-write:     #059669;
+  --tool-grep:      #0d9488;
+  --tool-glob:      #0d9488;
+  --tool-search:    #7c3aed;
+  --tool-skill:     #7c3aed;
+  --tool-agent:     #2563eb;
+  --tool-task:      #059669;
+  --tool-plan:      #6366f1;
+  --tool-sql:       #0891b2;
+  --tool-ask:       #d97706;
+  --tool-copilot:   #10b981;
 }
-html,body,#app{height:100%;}
-body{
-  margin:0;
-  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
-  background:linear-gradient(180deg,var(--bg),#eef2f7);
-  color:#0f1724;
-  -webkit-font-smoothing:antialiased;
+
+html, body, #app {
+  height: 100%;
 }
-.app-shell{height:100vh; display:flex; flex-direction:column}
-.header{padding:12px 20px; border-bottom:1px solid rgba(15,23,36,0.06); display:flex; align-items:center; gap:12px}
-.header h1{margin:0; font-size:16px}
-.main{display:flex; gap:16px; padding:16px; height:calc(100vh - 64px); box-sizing:border-box}
-.left-col{width:340px; min-width:240px; max-width:420px; overflow:auto}
-.right-col{flex:1; overflow:auto}
-.card{background:var(--card); border-radius:10px; padding:12px; box-shadow: 0 1px 0 rgba(2,6,23,0.04); border:1px solid rgba(2,6,23,0.04)}
-.list-button{display:block; width:100%; text-align:left; padding:10px; border-radius:8px; border:none; background:transparent; color:inherit}
-.list-button:hover{background:rgba(2,6,23,0.02)}
-.user-item{margin-bottom:8px}
-.assistant-item{margin-bottom:12px}
-.message-renderer{line-height:1.45}
-.code-block{background:var(--code-bg); padding:10px; border-radius:8px; overflow:auto; border:1px solid rgba(2,6,23,0.04); font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size:13px}
-.todo-list ul{padding-left:18px}
-.todo-list li{margin:6px 0}
-.todo-list li > input[type=checkbox]{transform:scale(1.05); margin-right:8px}
-.system-note{opacity:0.8; font-size:12px}
-.meta{color:var(--muted); font-size:12px}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* Base resets */
+*, *::before, *::after { box-sizing: border-box; }
+
+::selection {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Base typography */
+h1, h2, h3, h4 { font-weight: 600; color: var(--text); }
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+
+/* Layout */
+.app-shell { height: 100vh; display: flex; flex-direction: column; }
+.header { padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-3); background: var(--card); }
+.header h1 { margin: 0; font-size: 15px; font-weight: 700; }
+.main { display: flex; gap: 0; height: calc(100vh - var(--header-height)); box-sizing: border-box; }
+.left-col { width: var(--sidebar-width); min-width: 240px; max-width: 420px; overflow: auto; border-right: 1px solid var(--border); }
+.right-col { flex: 1; overflow: auto; }
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.list-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.list-button:hover { background: var(--card-hover); }
+
+.user-item { margin-bottom: var(--sp-2); }
+.assistant-item { margin-bottom: var(--sp-3); }
+.message-renderer { line-height: 1.55; }
+
+.code-block {
+  background: var(--code-bg);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--code-text);
+}
+
+.todo-list ul { padding-left: 20px; }
+.todo-list li { margin: 6px 0; }
+.todo-list li > input[type=checkbox] { transform: scale(1.05); margin-right: 8px; }
+.system-note { opacity: 0.8; font-size: 12px; }
+.meta { color: var(--text-muted); font-size: 12px; }
+
 /* trip the message preview container */
-.user-preview { display:block; width:100%; text-align:left; padding:8px; border-radius:6px }
+.user-preview { display: block; width: 100%; text-align: left; padding: var(--sp-2); border-radius: var(--radius-sm); }
 /* Allow full user message height: remove preview max-height and overflow clipping */
-.user-preview .message-renderer { max-height: none; overflow: visible }
+.user-preview .message-renderer { max-height: none; overflow: visible; }
+
 /* responsive */
-@media (max-width:900px){
-  .left-col{display:none}
+@media (max-width: 900px) {
+  .left-col { display: none; }
 }

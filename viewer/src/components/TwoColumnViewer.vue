@@ -83,6 +83,7 @@ if (!messageContentUtils) {
 const { extractPlainText, getUserPreviewText, hasUserVisibleContent } = messageContentUtils
 const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
 const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
+const AUTO_SELECT_FIRST_USER_ID = '__auto_first_user__'
 
 export default {
   components: { MessageRenderer, ActionIconButton },
@@ -109,8 +110,7 @@ export default {
     highlightUserId: {
       handler(userId) {
         if (userId && this.visibleUsers.length > 0) {
-          // Find and select the user
-          const user = this.visibleUsers.find(u => u.id === userId)
+          const user = this.resolveHighlightedUser(userId)
           if (user) {
             this.$nextTick(() => {
               this.selectUser(user)
@@ -136,7 +136,7 @@ export default {
 
         // Auto-highlight if needed
         if (this.highlightUserId) {
-          const user = this.visibleUsers.find(u => u.id === this.highlightUserId)
+          const user = this.resolveHighlightedUser(this.highlightUserId)
           if (user) {
             this.$nextTick(() => {
               this.selectUser(user)
@@ -200,13 +200,18 @@ export default {
 
       // Auto-highlight if highlightUserId is set
       if (this.highlightUserId) {
-        const user = this.visibleUsers.find(u => u.id === this.highlightUserId)
+        const user = this.resolveHighlightedUser(this.highlightUserId)
         if (user) {
           this.$nextTick(() => {
             this.selectUser(user)
           })
         }
       }
+    },
+    resolveHighlightedUser(userId) {
+      if (!userId || this.visibleUsers.length === 0) return null
+      if (userId === AUTO_SELECT_FIRST_USER_ID) return this.visibleUsers[0] || null
+      return this.visibleUsers.find(u => u.id === userId) || null
     },
     setupEventSource() {
       this.cleanupEventSource()
@@ -682,6 +687,6 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 .assistant-item:hover .copy-group, .assistant-card:hover .copy-group, .copy-group:focus-within { opacity: 1; transform: translateY(0); pointer-events: auto }
 .assistant-card.muted { opacity: 0.7; background: #f3f4f6 }
 .muted-note { color: #666; font-style: italic; margin-top: 6px; font-size: 13px }
-.flash { animation: flash-bg 2.2s ease-in-out }
-@keyframes flash-bg { 0% { background: rgba(99,102,241,0.18) } 60% { background: transparent } 100% { background: transparent } }
+.flash { animation: flash-bg 1.8s ease-in-out }
+@keyframes flash-bg { 0% { background: rgba(37,99,235,0.22); box-shadow: inset 0 0 0 2px rgba(37,99,235,0.35) } 70% { background: transparent; box-shadow: none } 100% { background: transparent; box-shadow: none } }
 </style>

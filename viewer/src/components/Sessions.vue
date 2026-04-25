@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3>{{ displayProjectName }}</h3>
+    <h3 style="margin: 0 0 4px 0; font-size: 15px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text);">{{ displayProjectName }}</h3>
     <div v-if="loading">Loading...</div>
     <ul v-else class="sessions-list">
       <li v-for="s in sessions" :key="s.filePath" class="session-item">
@@ -60,13 +60,21 @@ export default {
   methods: {
     async load() {
       if (!this.project) return
+
+      const key = this.project.id || this.project.name
       this.loading = true
+      let sessions = []
       try {
-        const key = this.project.id || this.project.name
         const res = await fetch('/api/sessions?project=' + encodeURIComponent(key))
-        this.sessions = await res.json()
-      } catch (e) { console.error(e) }
+        const json = await res.json()
+        sessions = Array.isArray(json) ? json : []
+        this.sessions = sessions
+      } catch (e) {
+        console.error(e)
+        this.sessions = []
+      }
       this.loading = false
+      this.$emit('sessions-loaded', { projectKey: key, sessions: this.sessions })
     }
     , formatTime(ts) {
       if (!ts) return ''
@@ -149,43 +157,47 @@ export default {
 </script>
 
 <style scoped>
-.sessions-list { list-style:none; padding:0; margin:8px 0 }
-.session-item { margin-bottom:8px }
+.sessions-list { list-style:none; padding:0; margin:var(--sp-2) 0 }
+.session-item { margin-bottom:var(--sp-1) }
 .session-card {
   display: block;
   width: 100%;
   text-align: left;
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   background: var(--card);
-  padding: 8px;
-  border-radius: 6px;
-  transition: all 0.12s;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-out);
+  cursor: pointer;
 }
 
 .session-card:hover {
-  background: #f9fafb;
+  background: var(--card-hover);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .session-card.active {
-  background: rgba(37, 99, 235, 0.15);
-  border-color: #3b82f6;
+  background: var(--accent-muted);
+  border-color: var(--accent);
   border-width: 2px;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+  padding: 7px 11px;
+  box-shadow: var(--shadow-md);
   font-weight: 600;
 }
 
-.session-time { font-weight:600; font-size:13px; margin-bottom:4px }
-.session-preview { color:var(--muted); font-size:13px }
-.muted { color:#888; font-size:12px; margin-left:6px }
+.session-time { font-weight:600; font-size:13px; margin-bottom:2px; color: var(--text); }
+.session-preview { color: var(--text-secondary); font-size:13px; line-height: 1.35; }
+.muted { color: var(--text-muted); font-size:12px; margin-left:var(--sp-1) }
 .branch-badge {
   display: inline-block;
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--success-light);
+  color: var(--success);
   font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  margin-left: var(--sp-1);
   font-weight: 500;
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 </style>

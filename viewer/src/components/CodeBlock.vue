@@ -79,20 +79,40 @@ async function handleCopy() {
 </script>
 
 <style scoped>
-.code-block { background: transparent; position: relative; margin: 8px 0 }
-.code-block-header { display:flex; justify-content:space-between; align-items:center; font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px }
+.code-block { background: transparent; position: relative; margin: var(--sp-2) 0 }
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+  font-weight: 600;
+}
 .code-block-inline-copy {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: var(--sp-2);
+  right: var(--sp-2);
   z-index: 1;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(28, 25, 23, 0.85);
+  border: 1px solid rgba(231, 229, 228, 0.15);
   backdrop-filter: blur(4px);
+  border-radius: var(--radius-sm);
 }
-.btn-icon { border-radius: 6px }
+.btn-icon { border-radius: var(--radius-sm) }
 .pre { overflow: auto }
-.prism { padding: 12px; border-radius: 6px; background: var(--code-bg, #f5f5f7); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace; font-size: 13px; line-height: 1.5 }
+.prism {
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  border: none;
+}
 .has-inline-copy .prism { padding-right: 44px; }
 .line-numbers { counter-reset: linenumber }
 </style>

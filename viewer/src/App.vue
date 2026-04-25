@@ -4,6 +4,7 @@
       <ProjectSelector
         :selected="project"
         @select-project="onSelectProject"
+        @projects-loaded="onProjectsLoaded"
       />
     </div>
     <div class="layout">
@@ -25,6 +26,7 @@
           :project="project"
           :currentSessionFile="sessionFile"
           @select-session="onSelectSession"
+          @sessions-loaded="onSessionsLoaded"
         />
       </div>
       <main class="main-panel">
@@ -44,6 +46,8 @@ import SearchBox from './components/SearchBox.vue'
 import SearchResults from './components/SearchResults.vue'
 import TwoColumnViewer from './components/TwoColumnViewer.vue'
 
+const AUTO_SELECT_FIRST_USER_ID = '__auto_first_user__'
+
 export default {
   components: { ProjectSelector, Sessions, SearchBox, SearchResults, TwoColumnViewer },
   data() {
@@ -55,7 +59,9 @@ export default {
       searchQuery: '',
       searchResults: [],
       searchLoading: false,
-      highlightUserId: null
+      highlightUserId: null,
+      hasResolvedInitialProjectSelection: false,
+      pendingInitialSessionSelection: false
     }
   },
   computed: {
@@ -67,21 +73,49 @@ export default {
     }
   },
   methods: {
-    onSelectProject(p) {
+    onProjectsLoaded(projects) {
+      if (this.hasResolvedInitialProjectSelection) return
+
+      this.hasResolvedInitialProjectSelection = true
+
+      if (!this.project && Array.isArray(projects) && projects.length > 0) {
+        this.onSelectProject(projects[0], { autoInitial: true })
+      }
+    },
+    onSelectProject(p, options = {}) {
       this.project = p
       this.sessionFile = null
+      this.selectedSession = null
+      this.highlightUserId = null
+      // Auto-select first session whenever project changes, unless there's an active search
+      this.pendingInitialSessionSelection = true
       
       // If there's an active search query, re-trigger search in new project
       if (this.searchQuery && this.searchQuery.length >= 3) {
+        this.pendingInitialSessionSelection = false
         this.onSearch(this.searchQuery)
       } else {
         this.clearSearch()
       }
     },
-    onSelectSession(file, sessionObj) {
+    onSessionsLoaded({ projectKey, sessions }) {
+      if (!this.pendingInitialSessionSelection) return
+
+      const currentProjectKey = this.project && (this.project.id || this.project.name)
+      if (!currentProjectKey || projectKey !== currentProjectKey) return
+
+      this.pendingInitialSessionSelection = false
+
+      if (this.searchQuery || this.sessionFile || !Array.isArray(sessions) || sessions.length === 0) {
+        return
+      }
+
+      this.onSelectSession(sessions[0].filePath, sessions[0], { highlightFirstUser: true })
+    },
+    onSelectSession(file, sessionObj, options = {}) {
       this.sessionFile = file
       this.selectedSession = sessionObj || null
-      this.highlightUserId = null
+      this.highlightUserId = options.highlightFirstUser ? AUTO_SELECT_FIRST_USER_ID : null
     },
     async onSearch(query) {
       this.searchQuery = query
@@ -108,6 +142,7 @@ export default {
     },
     onSelectSearchResult({ sessionFile, userId }) {
       // Load the session and highlight the user message
+      this.pendingInitialSessionSelection = false
       this.highlightUserId = userId
       this.sessionFile = sessionFile
       this.selectedSession = null
@@ -145,24 +180,27 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: var(--bg);
 }
 
 .app-title {
-  padding: 8px 16px;
+  padding: var(--sp-2) var(--sp-4);
   font-size: 0.9rem;
   font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid rgba(2,6,23,0.06);
-  background: rgba(250,250,252,0.5);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
 }
 
 .app-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(2,6,23,0.08);
-  background: linear-gradient(180deg, rgba(250,250,252,0.8), rgba(244,247,250,0.6));
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  height: var(--header-height);
+  box-sizing: border-box;
 }
 
 .layout {
@@ -173,24 +211,29 @@ export default {
 }
 
 .sessions-panel {
-  width: 320px;
-  border-right: 1px solid #d1d5db;
-  padding: 12px;
+  width: var(--sidebar-width);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-3);
   overflow-y: auto;
-  background: rgba(255,255,255,0.5);
+  background: var(--bg);
 }
 
 .main-panel {
   flex: 1;
   min-width: 0;
-  padding: 12px;
+  padding: var(--sp-4);
   overflow: auto;
+  background: var(--bg);
 }
 
 .placeholder {
-  color: #666;
+  color: var(--text-muted);
   text-align: center;
-  padding: 40px 20px;
+  padding: var(--sp-10) var(--sp-5);
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 </style>

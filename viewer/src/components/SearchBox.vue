@@ -70,8 +70,8 @@ export default {
 .search-box {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
 }
 
 .search-input-wrapper {
@@ -84,53 +84,61 @@ export default {
   left: 10px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 16px;
-  color: #9ca3af;
+  font-size: 14px;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
 .search-input {
   width: 100%;
   max-width: 280px;
-  padding: 6px 8px 6px 32px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  background: var(--card);
+  color: var(--text);
   outline: none;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
 }
 
 .search-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   flex-shrink: 0;
 }
 
-.loading {
-  color: #3b82f6;
-  font-style: italic;
-}
-
-.result-count {
-  color: #059669;
-  font-weight: 500;
-}
+.loading { color: var(--info); font-style: italic; }
+.result-count { color: var(--success); font-weight: 500; }
 
 .clear-btn {
-  padding: 2px 6px;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  padding: 4px var(--sp-1);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  color: #6b7280;
-  font-size: 16px;
+  color: var(--text-muted);
+  font-size: 14px;
   line-height: 1;
   position: relative;
   z-index: 20;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .clear-btn:hover {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--card-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
 }
 </style>

@@ -63,6 +63,8 @@ export default {
           if (b.lastUpdated) return 1
           return (b.sessionCount || 0) - (a.sessionCount || 0)
         })
+
+        this.$emit('projects-loaded', this.projects)
       } catch (e) {
         console.error('Failed to load projects:', e)
       }
@@ -106,30 +108,32 @@ export default {
 <style scoped>
 .project-selector {
   min-width: 300px;
+  font-family: var(--font-sans);
 }
 
 .project-option {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   font-size: 14px;
 }
 
 .project-name {
   font-weight: 600;
+  color: var(--text);
 }
 
 .project-separator {
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .project-path {
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .project-meta {
   font-size: 12px;
-  color: #888;
+  color: var(--text-muted);
 }
 </style>

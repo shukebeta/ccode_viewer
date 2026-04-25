@@ -76,10 +76,15 @@ const currentLabel = computed(() => (props.active && props.activeLabel ? props.a
   justify-content: center;
   border: none;
   background: transparent;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
   line-height: 0;
   padding: 0;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.action-icon-button:hover {
+  color: var(--text);
 }
 
 .action-icon-button svg {
