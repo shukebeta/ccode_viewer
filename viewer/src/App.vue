@@ -224,7 +224,7 @@ export default {
 .main-panel {
   flex: 1;
   min-width: 0;
-  padding: var(--sp-4);
+  padding: 0 var(--sp-4) var(--sp-4);
   overflow: auto;
   background: var(--bg);
 }
