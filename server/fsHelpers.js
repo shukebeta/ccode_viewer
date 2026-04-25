@@ -236,15 +236,26 @@ function parseSimpleYaml(text) {
 
 /**
  * Convert an absolute path to Claude Code project directory name format.
+ * Claude Code replaces all non-alphanumeric-non-dash characters (/, _, ., etc.) with dashes.
  * /home/davidw/Projects/gnn -> -home-davidw-Projects-gnn
- * Preserves original case (unlike normalizePathToProjectId which lowercases).
+ * /home/davidw/Tools/ccode_viewer -> -home-davidw-Tools-ccode-viewer
+ * /home/davidw/.claude -> -home-davidw--claude
  */
 function pathToClaudeDirName(filePath) {
   const normalized = filePath.replace(/\\/g, '/')
-  if (normalized.startsWith('/')) {
-    return '-' + normalized.substring(1).replace(/\//g, '-')
+
+  // Handle Windows paths (C:/... or D:/...)
+  const winMatch = normalized.match(/^([A-Za-z]):\/(.+)$/)
+  if (winMatch) {
+    const [, drive, pathPart] = winMatch
+    return `${drive.toUpperCase()}--${pathPart.replace(/[^a-zA-Z0-9-]/g, '-')}`
   }
-  return normalized.replace(/\//g, '-')
+
+  if (normalized.startsWith('/')) {
+    return '-' + normalized.substring(1).replace(/[^a-zA-Z0-9-]/g, '-')
+  }
+
+  return normalized.replace(/[^a-zA-Z0-9-]/g, '-')
 }
 
 /**
