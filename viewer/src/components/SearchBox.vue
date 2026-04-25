@@ -72,6 +72,7 @@ export default {
   align-items: center;
   gap: var(--sp-1);
   margin-bottom: var(--sp-3);
+  padding: 0 var(--sp-3);
 }
 
 .search-input-wrapper {
@@ -91,7 +92,7 @@ export default {
 
 .search-input {
   width: 100%;
-  max-width: 280px;
+  max-width: none;
   padding: var(--sp-2) var(--sp-2) var(--sp-2) 30px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
