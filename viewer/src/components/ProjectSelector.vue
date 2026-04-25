@@ -110,7 +110,7 @@ export default {
   min-width: 300px;
   font-family: var(--font-sans);
 }
-.project-selector :deep(.el-input__inner) {
+.project-selector :deep(.el-select__placeholder) {
   font-weight: 600;
   color: var(--text);
 }

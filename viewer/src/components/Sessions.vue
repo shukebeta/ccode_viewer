@@ -162,13 +162,13 @@ export default {
 <style scoped>
 .sessions-header {
   margin: 0 0 8px 0;
-  padding: 8px 0;
+  padding: 8px var(--sp-3);
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-secondary);
   border-bottom: 2px solid #e5e7eb;
 }
-.sessions-list { list-style:none; padding:0; margin:var(--sp-2) 0 }
+.sessions-list { list-style:none; padding:0 var(--sp-3); margin:var(--sp-2) 0 }
 .session-item { margin-bottom:var(--sp-1) }
 .session-card {
   display: block;

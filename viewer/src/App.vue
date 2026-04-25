@@ -216,7 +216,7 @@ export default {
 .sessions-panel {
   width: var(--sidebar-width);
   border-right: 1px solid var(--border);
-  padding: var(--sp-3);
+  padding: 0;
   overflow-y: auto;
   background: var(--bg);
 }
