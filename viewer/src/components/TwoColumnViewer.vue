@@ -412,7 +412,7 @@ export default {
           const leftScroll = document.querySelector('.left-scroll')
           const userItems = leftScroll?.querySelectorAll('.user-item')
           if (userItems && userItems[userIndex]) {
-            userItems[userIndex].scrollIntoView({ behavior: 'smooth', block: 'center' })
+            userItems[userIndex].scrollIntoView({ behavior: 'instant', block: 'center' })
           }
         }
 
@@ -424,7 +424,7 @@ export default {
         // Highlight the user message element itself (or its internal card) so
         // bookmarks behave like left-side entries even if no assistant reply exists.
         const card = el.querySelector('.assistant-card') || el
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (el) el.scrollIntoView({ behavior: 'instant', block: 'center' })
         if (card) {
           card.classList.add('flash')
           setTimeout(() => card.classList.remove('flash'), 2600)

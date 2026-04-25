@@ -48,7 +48,7 @@ export default {
         setTimeout(() => {
           const activeButton = document.querySelector('.session-card.active')
           if (activeButton) {
-            activeButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            activeButton.scrollIntoView({ behavior: 'instant', block: 'center' })
           }
         }, 100)
       })
