@@ -28,10 +28,12 @@
       <pre
         :class="['prism', { 'line-numbers': showLineNumbers, 'is-collapsed': isCollapsible && !isExpanded }]"
         :style="prismStyle"
+        :title="isCollapsible ? 'Double-click to expand or collapse' : undefined"
         ref="preRef"
+        @dblclick="toggleExpanded"
       ><code :class="codeClass" v-html="highlighted"></code></pre>
     </div>
-    <button v-if="isCollapsible" type="button" class="code-block-toggle" :aria-expanded="isExpanded" @click="isExpanded = !isExpanded">
+    <button v-if="isCollapsible" type="button" class="code-block-toggle" :aria-expanded="isExpanded" @click="toggleExpanded">
       {{ isExpanded ? 'Show less' : 'Show more' }}
     </button>
   </div>
@@ -101,6 +103,11 @@ async function handleCopy() {
     copied.value = true
     setTimeout(() => (copied.value = false), 2000)
   }
+}
+
+function toggleExpanded() {
+  if (!isCollapsible.value) return
+  isExpanded.value = !isExpanded.value
 }
 </script>
 

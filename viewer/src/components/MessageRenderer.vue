@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="message-renderer" @click="handleContentClick">
+  <div ref="rootRef" class="message-renderer" @click="handleContentClick" @dblclick="handleContentDoubleClick">
     <div v-if="isTodoWrite" class="todo-container">
       <div class="todo-list" v-html="todoHtml"></div>
       <div v-if="systemNote" class="system-note" v-html="escapeHtml(systemNote)"></div>
@@ -855,14 +855,36 @@ function handleContentClick(event) {
   const container = toggle.closest('.collapsible-block.is-collapsible')
   if (!container) return
 
+  toggleCollapsibleContainer(container, toggle)
+}
+
+function toggleCollapsibleContainer(container, toggle = null) {
+  if (!container) return
+
   const isExpanded = container.getAttribute('data-expanded') === 'true'
   const nextExpanded = !isExpanded
-  const moreLabel = toggle.getAttribute('data-label-more') || COLLAPSE_LABEL_MORE
-  const lessLabel = toggle.getAttribute('data-label-less') || COLLAPSE_LABEL_LESS
+  const toggleButton = toggle || container.querySelector('.collapsible-toggle')
+  const moreLabel = toggleButton?.getAttribute('data-label-more') || COLLAPSE_LABEL_MORE
+  const lessLabel = toggleButton?.getAttribute('data-label-less') || COLLAPSE_LABEL_LESS
 
   container.setAttribute('data-expanded', nextExpanded ? 'true' : 'false')
-  toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false')
-  toggle.textContent = nextExpanded ? lessLabel : moreLabel
+  if (toggleButton) {
+    toggleButton.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false')
+    toggleButton.textContent = nextExpanded ? lessLabel : moreLabel
+  }
+}
+
+function handleContentDoubleClick(event) {
+  if (!(event.target instanceof Element)) return
+  if (event.target.closest('.collapsible-toggle, button, a, input, textarea, summary, .el-image')) return
+
+  const body = event.target.closest('.collapsible-block-body')
+  if (!body) return
+
+  const container = body.closest('.collapsible-block.is-collapsible')
+  if (!container) return
+
+  toggleCollapsibleContainer(container)
 }
 
 onMounted(() => {
