@@ -150,6 +150,54 @@
 .write-markdown-block li { margin: 0.08rem 0; line-height: 1.3; }
 .write-markdown-block li > p { margin: 0 !important; }
 
+/* Generic collapsible blocks rendered via v-html */
+.collapsible-block {
+  --collapsible-fade-bg: var(--card);
+}
+.collapsible-block.is-collapsible .collapsible-block-body {
+  position: relative;
+  max-height: var(--collapsible-max-height, 7.8em);
+  overflow: hidden;
+}
+.collapsible-block.is-collapsible .collapsible-block-body::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.75rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--collapsible-fade-bg));
+  pointer-events: none;
+}
+.collapsible-block.is-collapsible[data-expanded='true'] .collapsible-block-body {
+  max-height: none;
+  overflow: visible;
+}
+.collapsible-block.is-collapsible[data-expanded='true'] .collapsible-block-body::after { display: none; }
+.collapsible-toggle {
+  display: inline-block;
+  margin-top: var(--sp-1);
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px var(--sp-1);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  transition: color var(--duration-fast);
+}
+.collapsible-toggle:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.tool-result-collapsible { --collapsible-fade-bg: var(--accent-light); }
+.json-collapsible { --collapsible-fade-bg: var(--bg); }
+.markdown-collapsible,
+.write-markdown-collapsible,
+.thinking-collapsible { --collapsible-fade-bg: var(--card); }
+
 /* Skill content */
 .skill-content {
   margin: var(--sp-1) 0;

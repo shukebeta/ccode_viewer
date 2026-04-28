@@ -1,5 +1,5 @@
 <template>
-  <div class="message-renderer">
+  <div ref="rootRef" class="message-renderer" @click="handleContentClick">
     <div v-if="isTodoWrite" class="todo-container">
       <div class="todo-list" v-html="todoHtml"></div>
       <div v-if="systemNote" class="system-note" v-html="escapeHtml(systemNote)"></div>
@@ -9,7 +9,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick, createApp, h } from 'vue'
+import { computed, ref, onMounted, watch, nextTick, createApp, h } from 'vue'
 import { marked } from 'marked'
 import '../../../shared/messageContent.js'
 
@@ -25,7 +25,39 @@ if (!messageContentUtils) {
 const { extractLeadingSkillPayload, getSkillContentSummary } = messageContentUtils
 
 const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true }, disableImagePreview: { type: Boolean, default: false } })
-const emit = defineEmits([])
+const rootRef = ref(null)
+
+const DEFAULT_COLLAPSED_LINES = 4
+const MIN_COLLAPSIBLE_LINES = 5
+const COLLAPSE_LABEL_MORE = 'Show more'
+const COLLAPSE_LABEL_LESS = 'Show less'
+
+function getLineCount(value) {
+  const text = String(value ?? '').replace(/\r\n/g, '\n').trim()
+  if (!text) return 0
+  return text.split('\n').length
+}
+
+function shouldCollapseText(value, minLines = MIN_COLLAPSIBLE_LINES) {
+  return getLineCount(value) > minLines
+}
+
+function getCollapsedMaxHeight(lines = DEFAULT_COLLAPSED_LINES) {
+  return `${Number(lines) * 1.5 + 1.8}em`
+}
+
+function renderCollapsibleBlock(innerHtml, { sourceText, lines = DEFAULT_COLLAPSED_LINES, minLines = MIN_COLLAPSIBLE_LINES, className = '' } = {}) {
+  if (!shouldCollapseText(sourceText, minLines)) return innerHtml
+  const classes = ['collapsible-block', 'is-collapsible']
+  if (className) classes.push(className)
+  const buttonMore = escapeAttribute(COLLAPSE_LABEL_MORE)
+  const buttonLess = escapeAttribute(COLLAPSE_LABEL_LESS)
+  return `<div class="${classes.join(' ')}" data-expanded="false"><div class="collapsible-block-body" style="--collapsible-max-height:${getCollapsedMaxHeight(lines)}">${innerHtml}</div><button type="button" class="collapsible-toggle" aria-expanded="false" data-label-more="${buttonMore}" data-label-less="${buttonLess}">${buttonMore}</button></div>`
+}
+
+function renderCodePlaceholder(raw, language = '') {
+  return `<div class="__code_placeholder" data-lang="${escapeAttribute(language)}" data-raw="${escapeAttribute(raw)}" data-collapsed-lines="${DEFAULT_COLLAPSED_LINES}" data-min-lines="${MIN_COLLAPSIBLE_LINES}"></div>`
+}
 
 
 // Convert ANSI escape codes to HTML with colors, backgrounds, and styles
@@ -163,7 +195,8 @@ function looksLikeMarkdownText(text) {
 function renderMarkdownLikeText(text) {
   const renderer = createCustomMarkdownRenderer()
   const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
-  return `<div class="markdown-text" style="white-space:normal;line-height:1.35">${markdownHtml}</div>`
+  const content = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${markdownHtml}</div>`
+  return renderCollapsibleBlock(content, { sourceText: text, className: 'markdown-collapsible' })
 }
 
 function renderSkillContent(text) {
@@ -213,8 +246,8 @@ function renderPlain(c) {
 function renderCode(c) {
   const code = (c && (c.code || c.text)) || ''
   const str = String(code || '')
-  // Always render without collapsing - Show more feature temporarily disabled
-  return `<div class="__code_placeholder" data-lang="" data-raw="${escapeAttribute(str)}"></div>`
+  const language = (c && c.language) || ''
+  return renderCodePlaceholder(str, language)
 }
 
 function renderToolResult(c) {
@@ -242,7 +275,7 @@ function renderToolResult(c) {
   // if looks like JSON
   try {
     const parsed = JSON.parse(v)
-    return `<div class="__code_placeholder" data-lang="json" data-raw="${escapeAttribute(JSON.stringify(parsed, null, 2))}"></div>`
+    return renderCodePlaceholder(JSON.stringify(parsed, null, 2), 'json')
   } catch (e) {
     // fallback: render as text or markdown
     const str = String(v)
@@ -251,20 +284,20 @@ function renderToolResult(c) {
     // Check if contains ANSI codes and render with colors
     if (/\x1b\[/.test(str)) {
       const coloredHtml = ansiToHtml(str)
-      return '<pre class="tool-result">' + coloredHtml + '</pre>'
+      return renderCollapsibleBlock('<pre class="tool-result">' + coloredHtml + '</pre>', { sourceText: str, className: 'tool-result-collapsible' })
     }
 
     if (isCodeLike(str)) {
-      return `<div class="__code_placeholder" data-lang="" data-raw="${escapeAttribute(str)}"></div>`
+      return renderCodePlaceholder(str)
     }
 
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
       // if markdown-like, render full markdown
       const rendered = marked.parse(escaped)
-      return `<div class="tool-result">${rendered}</div>`
+      return renderCollapsibleBlock(`<div class="tool-result">${rendered}</div>`, { sourceText: str, className: 'tool-result-collapsible' })
     }
 
-    return '<pre class="tool-result">' + escaped + '</pre>'
+    return renderCollapsibleBlock('<pre class="tool-result">' + escaped + '</pre>', { sourceText: str, className: 'tool-result-collapsible' })
   }
 }
 
@@ -276,7 +309,8 @@ function renderThinking(c) {
 
   const renderer = createCustomMarkdownRenderer()
   const thinkingHtml = marked.parse(escapeHtml(String(thinkingText)), { renderer })
-  return '<div class="thinking-block"><span class="thinking-placeholder-label">thinking…</span>' + thinkingHtml + '</div>'
+  const thinkingBody = renderCollapsibleBlock(thinkingHtml, { sourceText: thinkingText, className: 'thinking-collapsible' })
+  return '<div class="thinking-block"><span class="thinking-placeholder-label">thinking…</span>' + thinkingBody + '</div>'
 }
 
 function formatDuration(durationMs) {
@@ -311,8 +345,12 @@ function renderAgentResult(c) {
 function renderJson(c) {
   try {
     const obj = c && (c.value || c.content) || c
-    return `<pre class="json-content">${escapeHtml(JSON.stringify(obj, null, 2))}</pre>`
-  } catch (e) { return `<pre class="json-content">${escapeHtml(String(c))}</pre>` }
+    const jsonText = JSON.stringify(obj, null, 2)
+    return renderCollapsibleBlock(`<pre class="json-content">${escapeHtml(jsonText)}</pre>`, { sourceText: jsonText, className: 'json-collapsible' })
+  } catch (e) {
+    const fallback = String(c)
+    return renderCollapsibleBlock(`<pre class="json-content">${escapeHtml(fallback)}</pre>`, { sourceText: fallback, className: 'json-collapsible' })
+  }
 }
 
 function renderImage(c) {
@@ -334,7 +372,8 @@ function renderImage(c) {
 function renderMarkdown(c) {
   const src = (c && (c.text || c.content)) || ''
   // escape raw HTML before parsing markdown to avoid accidental tag promotion
-  return marked.parse(escapeHtml(String(src)))
+  const markdownHtml = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${marked.parse(escapeHtml(String(src)))}</div>`
+  return renderCollapsibleBlock(markdownHtml, { sourceText: src, className: 'markdown-collapsible' })
 }
 
 // Shared custom markdown renderer with inline styles (for ExitPlanMode and thinking blocks)
@@ -429,11 +468,7 @@ function renderReadTool(c) {
   const asContent = (c && (c.result && c.result.content)) || (c && (c.content || c.text)) || (c && c.input && c.input.content) || ''
   const code = (typeof asContent === 'object' && (asContent.code || asContent.text)) ? (asContent.code || asContent.text) : asContent
   const lang = (c && c.language) || (c && c.input && c.input.language) || ''
-  const escaped = escapeHtml(String(code || ''))
-  // Use inline styles on the returned HTML so scoped styles (and v-html) don't prevent the collapse from working.
-  const preStyle = 'max-height:3.6em;overflow:hidden;transition:max-height 0.18s ease'
-  const btnStyle = 'display:inline-block;margin-top:6px;background:transparent;border:none;color:#0a66ff;cursor:pointer;padding:2px 6px;font-size:13px'
-  return `<div class="read-container"><pre class="code-block read-collapsed" style="${preStyle}"><code${lang ? ` class="language-${escapeHtml(lang)}"` : ''}>${escaped}</code></pre><button class="read-toggle" data-full="false" style="${btnStyle}">Show more</button></div>`
+  return renderCodePlaceholder(String(code || ''), lang)
 }
 
 function isMarkdownFilePath(filePath) {
@@ -460,7 +495,8 @@ function renderWriteTool(c) {
 
   const renderer = createCustomMarkdownRenderer()
   const markdownHtml = marked.parse(escapeHtml(content), { renderer })
-  return `<div class="write-tool write-tool-markdown">${summary}<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div></div>`
+  const body = renderCollapsibleBlock(`<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div>`, { sourceText: content, className: 'write-markdown-collapsible' })
+  return `<div class="write-tool write-tool-markdown">${summary}${body}</div>`
 }
 
 // Render Copilot-specific tool blocks that have no Claude Code equivalent
@@ -736,68 +772,106 @@ function isCodeLike(text) {
 }
 
 
-// Replace code block placeholders with CodeBlock component on mount
+async function replaceCodeBlocks() {
+  const root = rootRef.value
+  if (!root) return
+
+  try {
+    const mod = await import('./CodeBlock.vue')
+    const CodeBlockComp = mod.default
+    const placeholders = root.querySelectorAll('.__code_placeholder')
+    placeholders.forEach((ph) => {
+      const language = ph.getAttribute('data-lang') || ''
+      const raw = ph.getAttribute('data-raw') || ''
+      const collapsedLines = Number.parseInt(ph.getAttribute('data-collapsed-lines') || String(DEFAULT_COLLAPSED_LINES), 10)
+      const minCollapsibleLines = Number.parseInt(ph.getAttribute('data-min-lines') || String(MIN_COLLAPSIBLE_LINES), 10)
+      const mount = document.createElement('div')
+
+      ph.parentNode?.replaceChild(mount, ph)
+
+      try {
+        const app = createApp(CodeBlockComp, {
+          language,
+          value: raw,
+          collapsedLines: Number.isFinite(collapsedLines) ? collapsedLines : DEFAULT_COLLAPSED_LINES,
+          minCollapsibleLines: Number.isFinite(minCollapsibleLines) ? minCollapsibleLines : MIN_COLLAPSIBLE_LINES
+        })
+        if (mount) app.mount(mount)
+      } catch (e) {
+        // ignore mount errors
+      }
+    })
+  } catch (e) {
+    // ignore if dynamic import fails
+  }
+}
+
+async function replaceImages() {
+  const root = rootRef.value
+  if (!root) return
+
+  try {
+    const { ElImage } = await import('element-plus')
+    const placeholders = root.querySelectorAll('.__image_placeholder')
+    placeholders.forEach((ph) => {
+      const src = ph.getAttribute('data-src') || ''
+      const disablePreview = ph.getAttribute('data-disable-preview') === 'true'
+      const mount = document.createElement('div')
+      ph.parentNode?.replaceChild(mount, ph)
+      try {
+        const imageProps = {
+          src: src,
+          style: 'max-height: 4em; width: auto; border-radius: 4px; cursor: pointer',
+          fit: 'contain'
+        }
+        if (!disablePreview) {
+          imageProps.previewSrcList = [src]
+        }
+        const app = createApp({
+          render() {
+            return h(ElImage, imageProps)
+          }
+        })
+        if (mount) app.mount(mount)
+      } catch (e) {
+        // ignore mount errors
+      }
+    })
+  } catch (e) {
+    // ignore if dynamic import fails
+  }
+}
+
+async function enhanceDynamicContent() {
+  await nextTick()
+  await replaceCodeBlocks()
+  await replaceImages()
+}
+
+function handleContentClick(event) {
+  const toggle = event.target instanceof Element ? event.target.closest('.collapsible-toggle') : null
+  if (!toggle) return
+
+  const container = toggle.closest('.collapsible-block.is-collapsible')
+  if (!container) return
+
+  const isExpanded = container.getAttribute('data-expanded') === 'true'
+  const nextExpanded = !isExpanded
+  const moreLabel = toggle.getAttribute('data-label-more') || COLLAPSE_LABEL_MORE
+  const lessLabel = toggle.getAttribute('data-label-less') || COLLAPSE_LABEL_LESS
+
+  container.setAttribute('data-expanded', nextExpanded ? 'true' : 'false')
+  toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false')
+  toggle.textContent = nextExpanded ? lessLabel : moreLabel
+}
+
 onMounted(() => {
-  const replaceCodeBlocks = async () => {
-    try {
-      const mod = await import('./CodeBlock.vue')
-      const CodeBlockComp = mod.default
-      const placeholders = document.querySelectorAll('.__code_placeholder')
-      placeholders.forEach((ph) => {
-        const language = ph.getAttribute('data-lang') || ''
-        const raw = ph.getAttribute('data-raw') || ''
-        const mount = document.createElement('div')
-
-        ph.parentNode?.replaceChild(mount, ph)
-
-        try {
-          const app = createApp(CodeBlockComp, { language, value: raw })
-          if (mount) app.mount(mount)
-        } catch (e) {
-          // ignore mount errors
-        }
-      })
-    } catch (e) {
-      // ignore if dynamic import fails
-    }
-  }
-  const replaceImages = async () => {
-    try {
-      const { ElImage } = await import('element-plus')
-      const placeholders = document.querySelectorAll('.__image_placeholder')
-      placeholders.forEach((ph) => {
-        const src = ph.getAttribute('data-src') || ''
-        const disablePreview = ph.getAttribute('data-disable-preview') === 'true'
-        const mount = document.createElement('div')
-        ph.parentNode?.replaceChild(mount, ph)
-        try {
-          const imageProps = {
-            src: src,
-            style: 'max-height: 4em; width: auto; border-radius: 4px; cursor: pointer',
-            fit: 'contain'
-          }
-          if (!disablePreview) {
-            imageProps.previewSrcList = [src]
-          }
-          const app = createApp({
-            render() {
-              return h(ElImage, imageProps)
-            }
-          })
-          if (mount) app.mount(mount)
-        } catch (e) {
-          // ignore mount errors
-        }
-      })
-    } catch (e) {
-      // ignore if dynamic import fails
-    }
-  }
-
-  // Call once on mount to replace initial placeholders
-  replaceCodeBlocks()
-  replaceImages()
+  enhanceDynamicContent()
 })
+
+watch(html, () => {
+  enhanceDynamicContent()
+}, { flush: 'post' })
 
 const isTodoWrite = computed(() => {
   const c = props.content
@@ -872,24 +946,6 @@ const systemNote = computed(() => {
 /* wrapped code */
 .message-renderer pre { white-space: pre-wrap; word-break: break-word }
 .message-renderer code { font-family: var(--font-mono); }
-
-/* Read tool collapsed preview */
-.read-container { position: relative }
-.read-collapsed { max-height: 3.6em; overflow: hidden; position: relative }
-.read-collapsed.read-expanded { max-height: none }
-.read-toggle {
-  display: inline-block;
-  margin-top: var(--sp-1);
-  background: transparent;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  padding: 2px var(--sp-1);
-  font-size: 13px;
-  font-weight: 500;
-  transition: color var(--duration-fast);
-}
-.read-toggle:hover { color: var(--text); text-decoration: underline; }
 </style>
 
 <style>

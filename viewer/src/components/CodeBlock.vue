@@ -25,8 +25,15 @@
       @click="handleCopy"
     />
     <div style="position:relative">
-      <pre :class="['prism', { 'line-numbers': showLineNumbers }]" ref="preRef"><code :class="codeClass" v-html="highlighted"></code></pre>
+      <pre
+        :class="['prism', { 'line-numbers': showLineNumbers, 'is-collapsed': isCollapsible && !isExpanded }]"
+        :style="prismStyle"
+        ref="preRef"
+      ><code :class="codeClass" v-html="highlighted"></code></pre>
     </div>
+    <button v-if="isCollapsible" type="button" class="code-block-toggle" :aria-expanded="isExpanded" @click="isExpanded = !isExpanded">
+      {{ isExpanded ? 'Show less' : 'Show more' }}
+    </button>
   </div>
 </template>
 
@@ -39,14 +46,33 @@ import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-markup'
 import 'prismjs/components/prism-bash'
 
-const props = defineProps({ language: { type: String, default: '' }, value: { type: String, required: true } })
+const props = defineProps({
+  language: { type: String, default: '' },
+  value: { type: String, required: true },
+  collapsedLines: { type: Number, default: 4 },
+  minCollapsibleLines: { type: Number, default: 5 }
+})
 
 const copied = ref(false)
 const preRef = ref(null)
+const isExpanded = ref(false)
 
 const hasLanguage = computed(() => Boolean(props.language && props.language.trim()))
-const showLineNumbers = computed(() => props.value.split('\n').length > 5)
+const lineCount = computed(() => {
+  const value = String(props.value || '').replace(/\r\n/g, '\n')
+  if (!value) return 0
+  return value.split('\n').length
+})
+const showLineNumbers = computed(() => lineCount.value > 5)
+const isCollapsible = computed(() => lineCount.value > props.minCollapsibleLines)
 const codeClass = computed(() => (props.language ? `language-${props.language}` : ''))
+const prismStyle = computed(() => {
+  if (!isCollapsible.value || isExpanded.value) return undefined
+  return {
+    maxHeight: `${props.collapsedLines * 1.55 + 1.85}em`,
+    overflow: 'hidden'
+  }
+})
 
 const highlighted = computed(() => {
   try {
@@ -112,7 +138,31 @@ async function handleCopy() {
   font-size: 13px;
   line-height: 1.55;
   border: none;
+  position: relative;
 }
 .has-inline-copy .prism { padding-right: 44px; }
+.prism.is-collapsed::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.75rem;
+  background: linear-gradient(180deg, rgba(28, 25, 23, 0), var(--code-bg));
+  pointer-events: none;
+}
 .line-numbers { counter-reset: linenumber }
+.code-block-toggle {
+  display: inline-block;
+  margin-top: var(--sp-1);
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px var(--sp-1);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color var(--duration-fast);
+}
+.code-block-toggle:hover { color: var(--text); text-decoration: underline; }
 </style>
