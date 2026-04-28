@@ -1,0 +1,48 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Rewind",
+  "version": "../package.json",
+  "identifier": "com.shukebeta.rewind",
+  "build": {
+    "frontendDist": "../src-tauri/static",
+    "beforeDevCommand": "node scripts/prepare-tauri.mjs",
+    "beforeBuildCommand": "node scripts/prepare-tauri.mjs"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Rewind — Navigate and explore your AI coding sessions",
+        "width": 1440,
+        "height": 920,
+        "minWidth": 1024,
+        "minHeight": 720,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "shortDescription": "Browse Claude Code and Copilot session history as a desktop app.",
+    "longDescription": "Rewind packages the existing Node/Express backend and Vue viewer inside a cross-platform Tauri desktop shell so the app can be launched without a separate dev server.",
+    "resources": [
+      "resources/app"
+    ],
+    "externalBin": [
+      "binaries/rewind-node"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

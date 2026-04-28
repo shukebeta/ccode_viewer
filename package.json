@@ -9,11 +9,16 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:viewer\"",
     "restart": "concurrently --kill-others-on-fail --restart-tries 3 \"npm run dev:server\" \"npm run dev:viewer\"",
     "start:server": "cd server && npm start",
-    "start:app": "node server\\launcher.js",
+    "start:app": "node server/launcher.js",
     "build:viewer": "cd viewer && npm run build",
-    "package:exe": "node scripts\\package-exe.mjs",
+    "desktop:prepare": "node scripts/prepare-tauri.mjs",
+    "desktop:dev": "pnpm tauri dev",
+    "desktop:build": "pnpm tauri build",
+    "package:tauri": "pnpm run desktop:build",
+    "package:exe": "node scripts/package-exe.mjs",
     "install:all": "npm install && cd server && npm install && cd ../viewer && npm install",
-    "test": "cd server && npm test"
+    "test": "cd server && npm test",
+    "test:server": "pnpm --dir server exec vitest run"
   },
   "repository": {
     "type": "git",
@@ -28,6 +33,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "concurrently": "^9.2.1"
   }
 }

@@ -81,6 +81,81 @@ A manual workflow is included at:
 
 Run it with **Actions -> Package Windows EXE -> Run workflow**. It installs dependencies, runs the existing server tests, builds the frontend assets, publishes the native launcher EXE, and uploads the result as a workflow artifact.
 
+## Tauri desktop packaging
+
+The repository now also includes a **cross-platform Tauri desktop host** that keeps the existing packaged-app architecture:
+
+- Tauri provides the native desktop window on Linux and Windows.
+- The packaged app still runs the existing **Node/Express** backend and the built Vue frontend.
+- A platform-native **Node sidecar** is bundled with the desktop app.
+- On first launch of a build, the packaged payload is copied into the app-local data directory.
+- The desktop host starts `server/launcher.js`, waits for the generated local URL, and opens it inside the desktop webview.
+- Closing the desktop app shuts down the child Node process.
+
+This path **does not remove or replace** the existing WinForms EXE packaging.
+
+### Linux prerequisites
+
+Tauri needs Rust plus native webview build dependencies. On Debian/MX Linux:
+
+```bash
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
+```
+
+Then restart your shell or run:
+
+```bash
+. "$HOME/.cargo/env"
+```
+
+### Local desktop build
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --dir server install --frozen-lockfile
+pnpm --dir viewer install --frozen-lockfile
+pnpm run package:tauri
+```
+
+The Tauri build first prepares `src-tauri/resources/app` with:
+
+- the packaged server sources and production dependencies
+- the shared helpers
+- the production viewer build under `server/public`
+- build metadata used by the desktop launcher
+
+Typical outputs:
+
+- **Linux**: `src-tauri/target/release/bundle/appimage/` and `src-tauri/target/release/bundle/deb/`
+- **Windows**: `src-tauri/target/release/bundle/nsis/`
+
+### Local desktop dev host
+
+```bash
+pnpm run desktop:dev
+```
+
+This uses the packaged desktop host flow, not the Vite dev server. It is intended for validating desktop packaging behavior rather than HMR-based frontend development.
+
+### GitHub Actions packaging
+
+An automatic Linux packaging workflow is included at:
+
+```bash
+.github/workflows/package-tauri.yml
+```
+
+It runs automatically on pushes to `master` when desktop-related files change, and it can also be started manually from **Actions -> Package Linux Tauri App -> Run workflow**. The workflow builds the Linux AppImage and `.deb` bundles and uploads them as workflow artifacts.
+
+Tauri can also package **Windows** and **macOS** builds, but those bundles must be built on their respective operating systems. For now this repository keeps:
+
+- the existing manual Windows WinForms EXE workflow
+- the automatic Linux Tauri workflow
+
+If you later want Tauri-based Windows or macOS packaging in Actions, you can add either GitHub-hosted `windows-latest` / `macos-latest` jobs or self-hosted runners, depending on your signing and environment requirements.
+
 ## Architecture
 
 ### Server (Express API)
