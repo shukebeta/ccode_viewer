@@ -56,10 +56,10 @@ The app can be packaged as a **single Windows EXE** that opens a native desktop 
 ### Local packaging
 
 ```bash
-npm install
-npm --prefix server install
-npm --prefix viewer install
-npm run package:exe
+pnpm install
+pnpm --dir server install
+pnpm --dir viewer install
+pnpm run package:exe
 ```
 
 This produces:

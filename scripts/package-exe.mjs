@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { copyFile, cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
@@ -14,11 +15,14 @@ const launcherSrcDir = path.join(distDir, 'launcher-src')
 const launcherPublishDir = path.join(distDir, 'launcher-publish')
 const launcherProjectPath = path.join(launcherSrcDir, 'RewindLauncher.csproj')
 const launcherProgramPath = path.join(launcherSrcDir, 'Program.cs')
+const launcherIconPath = path.join(launcherSrcDir, 'icon.ico')
 const payloadZipPath = path.join(launcherSrcDir, 'AppPayload.zip')
 const packageOutput = path.join(distDir, 'rewind-win-x64.exe')
 const buildInfoPath = path.join(distDir, 'BUILD-INFO.txt')
+const appIconSourcePath = path.join(repoRoot, 'src-tauri', 'icons', 'icon.ico')
 const buildId = `${(process.env.GITHUB_SHA || 'local').slice(0, 12)}-${new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').replace('T', '-')}`
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 const powershellCommand = process.platform === 'win32' ? 'powershell.exe' : 'pwsh'
 const webView2Version = '1.0.3912.50'
 
@@ -45,9 +49,67 @@ function run(command, args, options = {}) {
   }
 }
 
+function commandExists(command) {
+  const commandLine = [quoteArg(command), '--version'].join(' ')
+  const result = spawnSync(commandLine, {
+    cwd: repoRoot,
+    stdio: 'ignore',
+    shell: true
+  })
+
+  return !result.error && result.status === 0
+}
+
+function getPackageManager(projectDir) {
+  if (existsSync(path.join(projectDir, 'pnpm-lock.yaml')) && commandExists(pnpmCommand)) {
+    return 'pnpm'
+  }
+
+  return 'npm'
+}
+
+function installServerDependencies(serverDir) {
+  if (getPackageManager(serverDir) === 'pnpm') {
+    run(pnpmCommand, [
+      '--dir',
+      serverDir,
+      'install',
+      '--prod',
+      '--frozen-lockfile',
+      '--config.node-linker=hoisted',
+      '--config.package-import-method=copy'
+    ])
+    return
+  }
+
+  const hasPackageLock = existsSync(path.join(serverDir, 'package-lock.json'))
+  const args = ['--prefix', serverDir, hasPackageLock ? 'ci' : 'install', '--omit=dev']
+
+  if (!hasPackageLock) {
+    args.push('--no-package-lock')
+  }
+
+  run(npmCommand, args)
+}
+
+function buildViewer(outputDir) {
+  const viewerDir = path.join(repoRoot, 'viewer')
+
+  if (getPackageManager(viewerDir) === 'pnpm') {
+    run(pnpmCommand, ['--dir', viewerDir, 'exec', 'vite', 'build', '--outDir', outputDir, '--emptyOutDir'])
+  } else {
+    run(npmCommand, ['--prefix', viewerDir, 'exec', '--', 'vite', 'build', '--outDir', outputDir, '--emptyOutDir'])
+  }
+
+  const indexPath = path.join(outputDir, 'index.html')
+  if (!existsSync(indexPath)) {
+    throw new Error(`Viewer build did not produce ${indexPath}. Refusing to package stale assets.`)
+  }
+}
+
 function shouldCopyServerPath(sourcePath) {
   const parts = sourcePath.split(path.sep)
-  return !parts.includes('node_modules') && !parts.includes('__tests__')
+  return !parts.includes('node_modules') && !parts.includes('__tests__') && !parts.includes('public')
 }
 
 function escapePowerShellLiteral(value) {
@@ -98,6 +160,7 @@ function getLauncherProjectContents() {
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -425,6 +488,7 @@ internal sealed class HostForm : Form
         _runtime = runtime;
 
         Text = "Rewind — Navigate and explore your AI coding sessions";
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         Width = 1440;
         Height = 920;
         MinimumSize = new Size(1024, 720);
@@ -588,11 +652,12 @@ async function main() {
   })
   await cp(path.join(repoRoot, 'shared'), path.join(appDir, 'shared'), { recursive: true })
   await copyFile(process.execPath, path.join(appDir, 'node.exe'))
+  await copyFile(appIconSourcePath, launcherIconPath)
   await writeFile(path.join(appDir, 'BUILD-INFO.txt'), buildInfo)
   await writeFile(buildInfoPath, buildInfo)
 
-  run(npmCommand, ['--prefix', path.join(appDir, 'server'), 'ci', '--omit=dev'])
-  run(npmCommand, ['--prefix', 'viewer', 'run', 'build', '--', '--outDir', publicDir, '--emptyOutDir'])
+  installServerDependencies(path.join(appDir, 'server'))
+  buildViewer(publicDir)
 
   createPayloadZip(appDir, payloadZipPath)
   await writeFile(launcherProjectPath, getLauncherProjectContents())

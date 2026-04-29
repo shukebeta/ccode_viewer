@@ -1,6 +1,10 @@
 <template>
   <div class="app-root">
-<div class="app-header">
+    <div class="app-header">
+      <div class="app-brand" aria-label="Rewind">
+        <img class="app-brand-mark" src="/rewind-icon.svg" alt="" />
+        <span class="app-brand-name">Rewind</span>
+      </div>
       <ProjectSelector
         :selected="project"
         @select-project="onSelectProject"
@@ -204,6 +208,27 @@ export default {
   background: var(--card);
   height: var(--header-height);
   box-sizing: border-box;
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+.app-brand-mark {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+.app-brand-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
 .layout {

@@ -11,15 +11,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
           cache-dependency-path: |
-            package-lock.json
-            server/package-lock.json
-            viewer/package-lock.json
+            pnpm-lock.yaml
+            server/pnpm-lock.yaml
+            viewer/pnpm-lock.yaml
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -27,19 +32,19 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Install root dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install server dependencies
-        run: npm --prefix server ci
+        run: pnpm --dir server install --frozen-lockfile
 
       - name: Install viewer dependencies
-        run: npm --prefix viewer ci
+        run: pnpm --dir viewer install --frozen-lockfile
 
       - name: Run server tests
-        run: npm --prefix server exec vitest run
+        run: pnpm run test:server
 
       - name: Build Windows EXE
-        run: npm run package:exe
+        run: pnpm run package:exe
 
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
