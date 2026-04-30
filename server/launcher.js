@@ -8,12 +8,13 @@ const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 6173
 const PORT_SCAN_LIMIT = 20
 const LOCAL_PUBLIC_DIR = path.join(__dirname, 'public')
-const FALLBACK_PACKAGED_PUBLIC_DIR = path.join(__dirname, '..', 'dist', 'package-src', 'server', 'public')
+const VIEWER_DIST_DIR = path.join(__dirname, '..', 'viewer', 'dist')
 
 function resolvePublicDir() {
   if (process.env.CCODE_VIEWER_PUBLIC_DIR) return process.env.CCODE_VIEWER_PUBLIC_DIR
   if (fs.existsSync(path.join(LOCAL_PUBLIC_DIR, 'index.html'))) return LOCAL_PUBLIC_DIR
-  return FALLBACK_PACKAGED_PUBLIC_DIR
+  if (fs.existsSync(path.join(VIEWER_DIST_DIR, 'index.html'))) return VIEWER_DIST_DIR
+  return LOCAL_PUBLIC_DIR
 }
 
 function canListenOnPort(port, host = DEFAULT_HOST) {
