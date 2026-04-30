@@ -158,7 +158,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .list-button:hover { background: var(--card-hover); }
 
 .user-item { margin-bottom: var(--sp-2); }
-.assistant-item { margin-bottom: var(--sp-3); }
+.assistant-item { margin-bottom: var(--sp-2); }
 .message-renderer { line-height: 1.55; }
 .message-renderer table { border-collapse: collapse; width: 100%; margin: var(--sp-2) 0; font-size: 13px; }
 .message-renderer th, .message-renderer td { border: 1px solid var(--border); padding: var(--sp-1) var(--sp-2); text-align: left; }

@@ -159,21 +159,10 @@
   max-height: var(--collapsible-max-height, 7.8em);
   overflow: hidden;
 }
-.collapsible-block.is-collapsible .collapsible-block-body::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2.75rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--collapsible-fade-bg));
-  pointer-events: none;
-}
 .collapsible-block.is-collapsible[data-expanded='true'] .collapsible-block-body {
   max-height: none;
   overflow: visible;
 }
-.collapsible-block.is-collapsible[data-expanded='true'] .collapsible-block-body::after { display: none; }
 .collapsible-toggle {
   display: inline-block;
   margin-top: var(--sp-1);
@@ -181,7 +170,7 @@
   border: none;
   color: var(--accent);
   cursor: pointer;
-  padding: 2px var(--sp-1);
+  padding: 2px 0;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
@@ -197,6 +186,52 @@
 .markdown-collapsible,
 .write-markdown-collapsible,
 .thinking-collapsible { --collapsible-fade-bg: var(--card); }
+
+/* In paragraph mode the outer message row already provides the left guide,
+   so nested renderers should not add a second indentation layer. */
+.assistant-card .message-renderer :where(
+  .tool-result,
+  .tool-use,
+  .todo-container,
+  .read-summary,
+  .grep-tool,
+  .write-tool,
+  .skill-content,
+  .agent-result,
+  .copilot-tool-label,
+  .plan-mode-indicator,
+  .task-tool-label,
+  .unknown-block,
+  .thinking-block,
+  .thinking-block-placeholder,
+  .exit-plan-mode
+) {
+  border-left: none !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+.assistant-card .message-renderer .code-block {
+  padding: 0 !important;
+  margin: var(--sp-1) 0 !important;
+}
+
+.assistant-card .message-renderer .code-block .prism {
+  padding: var(--sp-2) !important;
+}
+
+.assistant-card .message-renderer .code-block.has-inline-copy .prism {
+  padding-right: 44px !important;
+}
+
+.assistant-card .message-renderer :where(
+  .skill-content-summary,
+  .skill-content-body,
+  .apply-patch-summary,
+  .apply-patch-body
+) {
+  padding-left: 0;
+}
 
 /* Skill content */
 .skill-content {
@@ -387,6 +422,16 @@
 /* Specific tool renderers */
 .skill-tool {
   border-left-color: var(--tool-skill) !important;
+}
+.memory-tool {
+  border-left-color: #8b5cf6 !important;
+}
+.memory-tool strong {
+  color: #7c3aed;
+}
+.memory-tool .memory-fact {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 .ask-user-tool .ask-header {
   font-weight: 600;

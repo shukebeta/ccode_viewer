@@ -40,19 +40,19 @@
     <div class="right">
       <h3 class="column-header">Conversation</h3>
       <div class="right-scroll">
-        <div v-if="allMessages.length === 0">No messages</div>
+        <div v-if="visibleAllMessages.length === 0">No messages</div>
         <ul>
   <li
-    v-for="(m, idx) in allMessages"
+    v-for="(m, idx) in visibleAllMessages"
     :key="m.id || idx"
     :id="`msg-${m.id || idx}`"
     class="assistant-item"
     :class="{ 'flash': m._flash, 'compact-entry': m._compactDisplay }"
     :data-display="m.displayType"
   >
-            <div class="assistant-card card" :class="{ muted: m.muted }" style="position:relative">
+            <div class="assistant-card card" :class="{ muted: m.muted, 'with-toolbar': !m._noCopy }">
             <div class="assistant-full">
-              <div v-if="!m._hideToolbar" class="assistant-toolbar">
+              <div v-if="!m._noCopy" class="assistant-toolbar">
                 <div class="copy-group">
                   <ActionIconButton class="copy-btn text-copy" :class="{ copied: m._copiedText }" icon="copy" label="Copy text" active-label="Copied text" @click.prevent="copyText(m)" />
                   <ActionIconButton class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" icon="document" label="Copy source JSON" active-label="Copied raw" @click.prevent="copyRaw(m)" />
@@ -85,6 +85,8 @@ import { AUTO_SELECT_FIRST_USER_ID } from '../constants'
 
 const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
 const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
+const HIDDEN_ASSISTANT_BLOCK_TYPES = new Set(['permission-mode', 'last-prompt', 'ai-title', 'skill_listing'])
+const HIDDEN_ASSISTANT_TOOL_NAMES = new Set(['ReportIntent', 'report_intent'])
 
 export default {
   components: { MessageRenderer, ActionIconButton },
@@ -103,6 +105,9 @@ export default {
   computed: {
     visibleUsers() {
       return this.users.filter(u => !u.hideFromUsers)
+    },
+    visibleAllMessages() {
+      return this.allMessages.filter(message => this.shouldRenderMessage(message))
     }
   },
   async mounted() { await this.load() },
@@ -352,13 +357,35 @@ export default {
       }
       return baseContent
     },
+    getRawCopySourceForBlock(raw, block, index) {
+      if (raw && Array.isArray(raw.content) && index < raw.content.length) return raw.content[index]
+      if (raw && raw.message && Array.isArray(raw.message.content) && index < raw.message.content.length) {
+        return raw.message.content[index]
+      }
+      return block
+    },
+    expandAssistantEntries(message) {
+      const content = message.content || message.preview || (message.raw ? (typeof message.raw === 'string' ? message.raw : JSON.stringify(message.raw)) : '')
+
+      if (!Array.isArray(content) || content.length <= 1) {
+        return [Object.assign({ displayType: 'assistant', content }, message)]
+      }
+
+      return content.map((block, index) => Object.assign({}, message, {
+        id: `${message.id || 'assistant'}__block_${index}`,
+        displayType: 'assistant',
+        content: block,
+        raw: this.getRawCopySourceForBlock(message.raw, block, index),
+        _segmentOf: message.id || null,
+        _segmentIndex: index
+      }))
+    },
     rebuildAllMessages() {
       const out = []
       // include any orphaned assistant messages first
       if (this.mapping['__no_user__']) {
         for (const a of this.mapping['__no_user__']) {
-          const content = a.content || a.preview || (a.raw ? (typeof a.raw === 'string' ? a.raw : JSON.stringify(a.raw)) : '')
-          out.push(Object.assign({ displayType: 'assistant', content }, a))
+          out.push(...this.expandAssistantEntries(a))
         }
       }
       for (const u of this.users) {
@@ -368,15 +395,43 @@ export default {
           displayType: 'user',
           content: ucontent,
           _compactDisplay: isCompactDisplay,
-          _hideToolbar: isCompactDisplay
+          _noCopy: Boolean(u.interruption)
         }, u))
         const replies = this.mapping[u.id] || []
         for (const a of replies) {
-          const content = a.content || a.preview || (a.raw ? (typeof a.raw === 'string' ? a.raw : JSON.stringify(a.raw)) : '')
-          out.push(Object.assign({ displayType: 'assistant', content }, a))
+          out.push(...this.expandAssistantEntries(a))
         }
       }
       this.allMessages = out
+    },
+    shouldRenderMessage(message) {
+      if (!message || message.displayType !== 'assistant') return true
+      if (message.muted) return true
+      return this.hasRenderableAssistantContent(message.content)
+    },
+    hasRenderableAssistantContent(content) {
+      if (content == null) return false
+      if (typeof content === 'string') return content.trim().length > 0
+      if (Array.isArray(content)) return content.some(item => this.hasRenderableAssistantContent(item))
+      if (typeof content !== 'object') return String(content).trim().length > 0
+
+      if (content.toolUseResult) return true
+
+      const type = content.type || (content.message && content.message.type) || null
+      const toolName = content._copilotToolName || content.toolName || content.name || (content.message && content.message.name) || null
+      if (HIDDEN_ASSISTANT_BLOCK_TYPES.has(type)) return false
+      if (HIDDEN_ASSISTANT_TOOL_NAMES.has(toolName)) return false
+      if (type === 'thinking') return Boolean(extractPlainText(content).trim())
+
+      const text = this.extractText(content).trim()
+      if (text) return true
+
+      if (type === 'text' || type === 'message' || type === 'paragraph') return false
+      if (Array.isArray(content.content)) return content.content.some(item => this.hasRenderableAssistantContent(item))
+      if (content.message) return this.hasRenderableAssistantContent(content.message.content || content.message.text || content.message)
+      if (content.result && content.result.content != null) return this.hasRenderableAssistantContent(content.result.content)
+
+      return Object.keys(content).length > 0
     },
     isSkippable(text) {
       if (!text) return false
@@ -445,7 +500,7 @@ export default {
     },
     async copyRaw(a) {
       try {
-        const raw = a.raw || a.content || a
+        const raw = a._rawCopySource ?? a.raw ?? a.content ?? a
         const txt = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
         a._copiedRaw = true
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -659,35 +714,120 @@ export default {
 }
 
 .right ul { padding: 0; margin: 0; list-style: none }
-.right li { margin-right: 8px; }
+.right li { margin-right: 0; }
 pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; margin: 0; }
 
-/* light separator between assistant replies */
-.right ul li.assistant-item + li.assistant-item {
-  border-top: 1px solid var(--border-light);
-  margin-top: var(--sp-2);
-  padding-top: var(--sp-2);
+/* paragraph-style message rhythm */
+.assistant-item {
+  position: relative;
+  margin: 0;
+  padding: 1px 0;
 }
 
-/* assistant card copy button */
-.assistant-card { padding: 8px; position: relative }
+.right ul li.assistant-item + li.assistant-item {
+  margin-top: 2px;
+}
+
+/* paragraph-style message container with copy controls */
+.assistant-card,
+.assistant-card.card {
+  position: relative;
+  min-width: 0;
+  padding: 4px 0 4px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.assistant-card::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.24);
+}
+
+.assistant-card.with-toolbar {
+  padding-right: 54px;
+}
+
 .assistant-full { min-width: 0; }
-.assistant-toolbar { position: absolute; top: 8px; right: 8px; z-index: 2; }
-/* Distinguish user and assistant messages with different backgrounds */
-.assistant-item[data-display="user"] .assistant-card { background: transparent; border-left: 2px solid rgba(59, 130, 246, 0.2); }
-.assistant-item[data-display="assistant"] .assistant-card { background: transparent; }
-.assistant-item.compact-entry .assistant-card { padding: 6px 10px; }
-.assistant-item.compact-entry .assistant-full > .message-renderer { line-height: 1.2; }
+.assistant-toolbar { position: absolute; top: 3px; right: 0; z-index: 2; }
+.assistant-item[data-display="user"] .assistant-card::before { background: rgba(59, 130, 246, 0.34); }
+.assistant-item[data-display="assistant"] .assistant-card::before { background: rgba(148, 163, 184, 0.24); }
+.assistant-item.compact-entry .assistant-card {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.assistant-item.compact-entry .assistant-full > .message-renderer { line-height: 1.25; }
+
+.assistant-card .message-renderer {
+  line-height: 1.42;
+}
+
+.assistant-card .message-renderer :where(p, ul, ol, pre, blockquote, table, hr) {
+  margin-block: 0.35rem;
+}
+
+.assistant-card .message-renderer :where(ul, ol) {
+  padding-left: 1.15rem;
+}
+
+.assistant-card .message-renderer li {
+  margin: 0.1rem 0;
+}
+
 .copy-btn { background: rgba(255,255,255,0.02); color: inherit; padding: 6px; border-radius: 6px }
 .copy-btn:hover { background: rgba(255,255,255,0.04) }
 .copy-btn.copied { background: rgba(52,211,153,0.16); color: var(--success) }
 
-.copy-group .copy-btn { position: relative; top: 0; right: 0; width: 24px; height: 24px; min-width: 24px; padding: 0; border-radius: 6px; border: 1px solid rgba(148,163,184,0.28); background: rgba(255,255,255,0.04); box-sizing: border-box }
-.copy-group .copy-btn:hover { background: rgba(255,255,255,0.04) }
+.copy-group .copy-btn {
+  position: relative;
+  top: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(245, 243, 240, 0.92);
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+}
+
+.copy-group .copy-btn:hover {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(148, 163, 184, 0.34);
+}
+
 .copy-group { display: flex; align-items: center; gap: 6px; opacity: 0; transform: translateY(-2px); transition: opacity 150ms ease, transform 150ms ease; pointer-events: none }
-.assistant-item:hover .copy-group, .assistant-card:hover .copy-group, .copy-group:focus-within { opacity: 1; transform: translateY(0); pointer-events: auto }
-.assistant-card.muted { opacity: 0.7; background: #f3f4f6 }
-.muted-note { color: #666; font-style: italic; margin-top: 6px; font-size: 13px }
+.assistant-item:hover .copy-group, .assistant-item:focus-within .copy-group, .copy-group:focus-within { opacity: 1; transform: translateY(0); pointer-events: auto }
+.assistant-card.muted {
+  opacity: 0.72;
+  background: transparent;
+}
+.assistant-card.muted::before {
+  background: rgba(168, 162, 158, 0.34);
+}
+.muted-note { color: #666; font-style: italic; margin-top: 4px; font-size: 13px }
 .flash { animation: flash-bg 1.8s ease-in-out }
-@keyframes flash-bg { 0% { background: rgba(37,99,235,0.22); box-shadow: inset 0 0 0 2px rgba(37,99,235,0.35) } 70% { background: transparent; box-shadow: none } 100% { background: transparent; box-shadow: none } }
+@keyframes flash-bg {
+  0% {
+    background: rgba(37, 99, 235, 0.08);
+    box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.35);
+  }
+  70% {
+    background: transparent;
+    box-shadow: none;
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
 </style>

@@ -28,7 +28,7 @@ const props = defineProps({ content: { type: [Object, Array, String], required: 
 const rootRef = ref(null)
 
 const DEFAULT_COLLAPSED_LINES = 4
-const MIN_COLLAPSIBLE_LINES = 5
+const MIN_COLLAPSIBLE_LINES = 6
 const COLLAPSE_LABEL_MORE = 'Show more'
 const COLLAPSE_LABEL_LESS = 'Show less'
 
@@ -565,9 +565,70 @@ function renderCopilotTool(c) {
       return `<div class="copilot-tool-label"><span class="tool-icon">&#128196;</span> Reading agent: ${escapeHtml(agentId)}</div>`
     }
 
-    default:
+    case 'powershell': {
+      const cmd = input.command || ''
+      const desc = input.description || ''
+      if (!cmd) return ''
+      return '<div class="bash-tool"><span class="bash-prompt">PS&gt;</span> <code>' + escapeHtml(cmd) + '</code>' + (desc ? '<div class="bash-desc">' + escapeHtml(desc) + '</div>' : '') + '</div>'
+    }
+
+    case 'read_powershell': {
+      const shellId = input.shellId || ''
+      return '<div class="bash-tool"><span class="bash-prompt">PS&gt;</span> <code>read shell ' + escapeHtml(shellId) + '</code></div>'
+    }
+
+    case 'write_powershell': {
+      const inp = input.input || ''
+      const shellId = input.shellId || ''
+      return '<div class="bash-tool"><span class="bash-prompt">PS&gt;</span> <code>' + escapeHtml(inp) + '</code> <span class="bash-desc">shell ' + escapeHtml(shellId) + '</span></div>'
+    }
+
+    case 'stop_powershell': {
+      const shellId = input.shellId || ''
+      return '<div class="bash-tool"><span class="bash-prompt">PS&gt;</span> <code>stop shell ' + escapeHtml(shellId) + '</code></div>'
+    }
+
+    case 'list_powershell':
+      return '<div class="bash-tool"><span class="bash-prompt">PS&gt;</span> <code>list shells</code></div>'
+
+    case 'skill': {
+      const skillName = input.skill || ''
+      return '<div class="copilot-tool-label skill-tool"><span class="tool-icon">&#9889;</span> Skill: <code>/' + escapeHtml(skillName) + '</code></div>'
+    }
+
+    case 'store_memory': {
+      const subject = input.subject || ''
+      const fact = (input.fact || '').substring(0, 150)
+      if (!subject && !fact) return ''
+      return '<div class="copilot-tool-label memory-tool"><span class="tool-icon">&#128190;</span> Memory: <strong>' + escapeHtml(subject) + '</strong>' + (fact ? ' <span class="memory-fact">' + escapeHtml(fact) + '</span>' : '') + '</div>'
+    }
+
+    default: {
+      // GitHub MCP tools
+      if (name.startsWith('github-mcp-server-')) {
+        const action = name.replace('github-mcp-server-', '')
+        if (action === 'search_code') {
+          const query = input.query || ''
+          return '<div class="copilot-tool-label web-search-tool"><span class="tool-icon">&#128269;</span> GitHub code search: "' + escapeHtml(query) + '"</div>'
+        }
+        if (action === 'get_file_contents') {
+          const owner = input.owner || ''
+          const repo = input.repo || ''
+          const fpath = input.path || ''
+          return '<div class="copilot-tool-label edit-tool"><span class="tool-icon">&#128196;</span> GitHub: <code>' + escapeHtml(owner + '/' + repo + '/' + fpath) + '</code></div>'
+        }
+        if (action === 'get_commit') {
+          const owner = input.owner || ''
+          const repo = input.repo || ''
+          const sha = (input.sha || '').substring(0, 8)
+          return '<div class="copilot-tool-label"><span class="tool-icon">&#128196;</span> GitHub commit: <code>' + escapeHtml(owner + '/' + repo + '@' + sha) + '</code></div>'
+        }
+        // Generic MCP tool
+        return '<div class="copilot-tool-label"><span class="tool-icon">&#128279;</span> GitHub: ' + escapeHtml(action) + '</div>'
+      }
       // Unknown copilot block - compact label instead of full JSON dump
       return `<div class="unknown-block">Unknown block: ${escapeHtml(name)}</div>`
+    }
   }
 }
 
@@ -598,6 +659,8 @@ function contentToHtml(c) {
   if (c.toolUseResult) return renderAgentResult(c)
 
   const t = c.type || (c.message && c.message.type) || null
+  // Hide system metadata blocks
+  if (t === 'permission-mode' || t === 'last-prompt' || t === 'ai-title' || t === 'skill_listing') return ''
   if (t === 'text' || t === 'message' || t === 'paragraph') return renderPlain(c)
   if (t === 'code' || t === 'program' || c.language) return renderCode(c)
   if (t === 'tool_result') return renderToolResult(c)
@@ -627,13 +690,25 @@ function contentToHtml(c) {
   if ((c.name === 'Write' || c.toolName === 'Write' || (c.message && c.message.name === 'Write'))) {
     return renderWriteTool(c)
   }
-  if ((c.name === 'Bash' || c.toolName === 'Bash' || (c.message && c.message.name === 'Bash'))) {
+  if ((c.name === 'Bash' || c.toolName === 'Bash' || (c.message && c.message.name === 'Bash')) ||
+      (c.name === 'powershell' || c.name === 'PowerShell' || c.name === 'Powershell')) {
     const cmd = (c.input && c.input.command) || (c.command) || ''
     const desc = (c.input && c.input.description) || (c.description) || ''
     if (!cmd) return ''
+    const isPowershell = ['powershell','PowerShell','Powershell'].includes(c.name)
+    const prompt = isPowershell ? 'PS&gt;' : '$'
     const escapedCmd = escapeHtml(cmd)
     const escapedDesc = desc ? escapeHtml(desc) : ''
-    return '<div class="bash-tool"><span class="bash-prompt">\$</span> <code>' + escapedCmd + '</code>' + (desc ? '<div class="bash-desc">' + escapedDesc + '</div>' : '') + '</div>'
+    return '<div class="bash-tool"><span class="bash-prompt">' + prompt + '</span> <code>' + escapedCmd + '</code>' + (desc ? '<div class="bash-desc">' + escapedDesc + '</div>' : '') + '</div>'
+  }
+  // store_memory tool
+  if (c.name === 'store_memory' || c.name === 'StoreMemory') {
+    const subject = (c.input && c.input.subject) || ''
+    const fact = (c.input && c.input.fact) || ''
+    if (!subject && !fact) return ''
+    const escapedSubject = escapeHtml(subject)
+    const escapedFact = escapeHtml(fact.substring(0, 150))
+    return '<div class="copilot-tool-label memory-tool"><span class="tool-icon">&#128190;</span> Memory: <strong>' + escapedSubject + '</strong>' + (escapedFact ? ' <span class="memory-fact">' + escapedFact + (fact.length > 150 ? '...' : '') + '</span>' : '') + '</div>'
   }
   if ((c.name === 'Read' || c.toolName === 'Read' || (c.action && c.action === 'read') || (c.message && c.message.name === 'Read') || (c.type === 'read'))) {
     return renderReadTool(c)
@@ -922,7 +997,7 @@ const systemNote = computed(() => {
 <style scoped>
 .message-renderer { white-space: pre-wrap; }
 .code-block { background: var(--code-bg); color: var(--code-text); padding: var(--sp-2); border-radius: var(--radius-sm); overflow-x: auto; border: none; }
-.tool-result { background: var(--accent-light); padding: var(--sp-2); border-radius: var(--radius-sm); }
+.tool-result { background: transparent; padding: var(--sp-1) 0; border-radius: 0; }
 .json-content { background: var(--bg); padding: var(--sp-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .image-content img { max-width: 100%; height: auto }
 .tool-use { border: none; border-left: 2px solid var(--border-strong); padding: var(--sp-1) var(--sp-2); border-radius: 0; margin-bottom: var(--sp-1); background: transparent; }
