@@ -50,9 +50,9 @@
     :class="{ 'flash': m._flash, 'compact-entry': m._compactDisplay }"
     :data-display="m.displayType"
   >
-            <div class="assistant-card" :class="{ muted: m.muted, 'with-toolbar': !m._hideToolbar }">
+            <div class="assistant-card card" :class="{ muted: m.muted, 'with-toolbar': !m._noCopy }">
             <div class="assistant-full">
-              <div v-if="!m._hideToolbar" class="assistant-toolbar">
+              <div v-if="!m._noCopy" class="assistant-toolbar">
                 <div class="copy-group">
                   <ActionIconButton class="copy-btn text-copy" :class="{ copied: m._copiedText }" icon="copy" label="Copy text" active-label="Copied text" @click.prevent="copyText(m)" />
                   <ActionIconButton class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" icon="document" label="Copy source JSON" active-label="Copied raw" @click.prevent="copyRaw(m)" />
@@ -352,13 +352,35 @@ export default {
       }
       return baseContent
     },
+    getRawCopySourceForBlock(raw, block, index) {
+      if (raw && Array.isArray(raw.content) && index < raw.content.length) return raw.content[index]
+      if (raw && raw.message && Array.isArray(raw.message.content) && index < raw.message.content.length) {
+        return raw.message.content[index]
+      }
+      return block
+    },
+    expandAssistantEntries(message) {
+      const content = message.content || message.preview || (message.raw ? (typeof message.raw === 'string' ? message.raw : JSON.stringify(message.raw)) : '')
+
+      if (!Array.isArray(content) || content.length <= 1) {
+        return [Object.assign({ displayType: 'assistant', content }, message)]
+      }
+
+      return content.map((block, index) => Object.assign({}, message, {
+        id: `${message.id || 'assistant'}__block_${index}`,
+        displayType: 'assistant',
+        content: block,
+        raw: this.getRawCopySourceForBlock(message.raw, block, index),
+        _segmentOf: message.id || null,
+        _segmentIndex: index
+      }))
+    },
     rebuildAllMessages() {
       const out = []
       // include any orphaned assistant messages first
       if (this.mapping['__no_user__']) {
         for (const a of this.mapping['__no_user__']) {
-          const content = a.content || a.preview || (a.raw ? (typeof a.raw === 'string' ? a.raw : JSON.stringify(a.raw)) : '')
-          out.push(Object.assign({ displayType: 'assistant', content }, a))
+          out.push(...this.expandAssistantEntries(a))
         }
       }
       for (const u of this.users) {
@@ -368,12 +390,11 @@ export default {
           displayType: 'user',
           content: ucontent,
           _compactDisplay: isCompactDisplay,
-          _hideToolbar: isCompactDisplay
+          _noCopy: Boolean(u.interruption)
         }, u))
         const replies = this.mapping[u.id] || []
         for (const a of replies) {
-          const content = a.content || a.preview || (a.raw ? (typeof a.raw === 'string' ? a.raw : JSON.stringify(a.raw)) : '')
-          out.push(Object.assign({ displayType: 'assistant', content }, a))
+          out.push(...this.expandAssistantEntries(a))
         }
       }
       this.allMessages = out
@@ -445,7 +466,7 @@ export default {
     },
     async copyRaw(a) {
       try {
-        const raw = a.raw || a.content || a
+        const raw = a._rawCopySource ?? a.raw ?? a.content ?? a
         const txt = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
         a._copiedRaw = true
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -685,7 +706,8 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 }
 
 /* paragraph-style message container with copy controls */
-.assistant-card {
+.assistant-card,
+.assistant-card.card {
   position: relative;
   min-width: 0;
   padding: 4px 0 4px 14px;
