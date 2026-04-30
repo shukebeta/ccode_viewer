@@ -28,7 +28,7 @@ const props = defineProps({ content: { type: [Object, Array, String], required: 
 const rootRef = ref(null)
 
 const DEFAULT_COLLAPSED_LINES = 4
-const MIN_COLLAPSIBLE_LINES = 5
+const MIN_COLLAPSIBLE_LINES = 6
 const COLLAPSE_LABEL_MORE = 'Show more'
 const COLLAPSE_LABEL_LESS = 'Show less'
 
@@ -997,7 +997,7 @@ const systemNote = computed(() => {
 <style scoped>
 .message-renderer { white-space: pre-wrap; }
 .code-block { background: var(--code-bg); color: var(--code-text); padding: var(--sp-2); border-radius: var(--radius-sm); overflow-x: auto; border: none; }
-.tool-result { background: var(--accent-light); padding: var(--sp-2); border-radius: var(--radius-sm); }
+.tool-result { background: transparent; padding: var(--sp-1) 0; border-radius: 0; }
 .json-content { background: var(--bg); padding: var(--sp-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .image-content img { max-width: 100%; height: auto }
 .tool-use { border: none; border-left: 2px solid var(--border-strong); padding: var(--sp-1) var(--sp-2); border-radius: 0; margin-bottom: var(--sp-1); background: transparent; }

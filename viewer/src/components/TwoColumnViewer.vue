@@ -691,18 +691,7 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 }
 
 .right ul li.assistant-item + li.assistant-item {
-  margin-top: 6px;
-  padding-top: 6px;
-}
-
-.right ul li.assistant-item + li.assistant-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 12px;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(231, 229, 228, 0.9), rgba(231, 229, 228, 0));
+  margin-top: 4px;
 }
 
 /* paragraph-style message container with copy controls */
