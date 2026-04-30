@@ -7,6 +7,9 @@ package-lock.json
 # Production
 dist
 /out
+server/public/index.html
+server/public/assets/
+server/public/app.js
 
 # Testing
 /coverage
