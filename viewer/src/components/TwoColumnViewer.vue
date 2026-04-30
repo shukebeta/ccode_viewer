@@ -40,10 +40,10 @@
     <div class="right">
       <h3 class="column-header">Conversation</h3>
       <div class="right-scroll">
-        <div v-if="allMessages.length === 0">No messages</div>
+        <div v-if="visibleAllMessages.length === 0">No messages</div>
         <ul>
   <li
-    v-for="(m, idx) in allMessages"
+    v-for="(m, idx) in visibleAllMessages"
     :key="m.id || idx"
     :id="`msg-${m.id || idx}`"
     class="assistant-item"
@@ -85,6 +85,8 @@ import { AUTO_SELECT_FIRST_USER_ID } from '../constants'
 
 const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
 const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
+const HIDDEN_ASSISTANT_BLOCK_TYPES = new Set(['permission-mode', 'last-prompt', 'ai-title', 'skill_listing'])
+const HIDDEN_ASSISTANT_TOOL_NAMES = new Set(['ReportIntent', 'report_intent'])
 
 export default {
   components: { MessageRenderer, ActionIconButton },
@@ -103,6 +105,9 @@ export default {
   computed: {
     visibleUsers() {
       return this.users.filter(u => !u.hideFromUsers)
+    },
+    visibleAllMessages() {
+      return this.allMessages.filter(message => this.shouldRenderMessage(message))
     }
   },
   async mounted() { await this.load() },
@@ -399,6 +404,35 @@ export default {
       }
       this.allMessages = out
     },
+    shouldRenderMessage(message) {
+      if (!message || message.displayType !== 'assistant') return true
+      if (message.muted) return true
+      return this.hasRenderableAssistantContent(message.content)
+    },
+    hasRenderableAssistantContent(content) {
+      if (content == null) return false
+      if (typeof content === 'string') return content.trim().length > 0
+      if (Array.isArray(content)) return content.some(item => this.hasRenderableAssistantContent(item))
+      if (typeof content !== 'object') return String(content).trim().length > 0
+
+      if (content.toolUseResult) return true
+
+      const type = content.type || (content.message && content.message.type) || null
+      const toolName = content._copilotToolName || content.toolName || content.name || (content.message && content.message.name) || null
+      if (HIDDEN_ASSISTANT_BLOCK_TYPES.has(type)) return false
+      if (HIDDEN_ASSISTANT_TOOL_NAMES.has(toolName)) return false
+      if (type === 'thinking') return Boolean(extractPlainText(content).trim())
+
+      const text = this.extractText(content).trim()
+      if (text) return true
+
+      if (type === 'text' || type === 'message' || type === 'paragraph') return false
+      if (Array.isArray(content.content)) return content.content.some(item => this.hasRenderableAssistantContent(item))
+      if (content.message) return this.hasRenderableAssistantContent(content.message.content || content.message.text || content.message)
+      if (content.result && content.result.content != null) return this.hasRenderableAssistantContent(content.result.content)
+
+      return Object.keys(content).length > 0
+    },
     isSkippable(text) {
       if (!text) return false
       const low = String(text).toLowerCase()
@@ -687,11 +721,11 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 .assistant-item {
   position: relative;
   margin: 0;
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .right ul li.assistant-item + li.assistant-item {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 /* paragraph-style message container with copy controls */
