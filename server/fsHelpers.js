@@ -661,11 +661,13 @@ module.exports = { getProjects, getSessions, readSessionFile, deleteSession }
 function mapCopilotToolName(name) {
   const map = {
     'bash': 'Bash', 'read_bash': 'Bash', 'write_bash': 'Bash', 'stop_bash': 'Bash',
+    'powershell': 'Powershell', 'read_powershell': 'Powershell', 'write_powershell': 'Powershell', 'stop_powershell': 'Powershell', 'list_powershell': 'Powershell',
     'view': 'Read', 'create': 'Write',
     'edit': 'Edit', 'grep': 'Grep', 'rg': 'Grep', 'glob': 'Glob',
     'report_intent': 'ReportIntent', 'apply_patch': 'ApplyPatch',
     'sql': 'Sql', 'ask_user': 'AskUser', 'task': 'Task',
-    'web_search': 'WebSearch', 'read_agent': 'ReadAgent'
+    'web_search': 'WebSearch', 'read_agent': 'ReadAgent',
+    'skill': 'Skill', 'store_memory': 'StoreMemory'
   }
   return map[name] || name
 }
@@ -679,6 +681,16 @@ function mapCopilotToolInput(toolName, args) {
   switch (toolName) {
     case 'bash': case 'read_bash': case 'write_bash': case 'stop_bash':
       return { command: args.command || '', description: args.description || '' }
+    case 'powershell':
+      return { command: args.command || '', description: args.description || '' }
+    case 'read_powershell':
+      return { command: 'read shell ' + (args.shellId || ''), description: 'Read PowerShell output' }
+    case 'write_powershell':
+      return { command: 'input: ' + (args.input || ''), description: 'Write to PowerShell shell ' + (args.shellId || '') }
+    case 'stop_powershell':
+      return { command: 'stop shell ' + (args.shellId || ''), description: '' }
+    case 'list_powershell':
+      return { command: 'list shells', description: '' }
     case 'view':
       return { file_path: args.path || '' }
     case 'create':

@@ -388,6 +388,16 @@
 .skill-tool {
   border-left-color: var(--tool-skill) !important;
 }
+.memory-tool {
+  border-left-color: #8b5cf6 !important;
+}
+.memory-tool strong {
+  color: #7c3aed;
+}
+.memory-tool .memory-fact {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .ask-user-tool .ask-header {
   font-weight: 600;
   font-size: 11px;
