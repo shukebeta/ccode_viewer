@@ -139,20 +139,53 @@ pnpm run desktop:dev
 
 This uses the packaged desktop host flow, not the Vite dev server. It is intended for validating desktop packaging behavior rather than HMR-based frontend development.
 
-### GitHub Actions packaging
+### GitHub Actions packaging and releases
 
-An automatic Linux packaging workflow is included at:
+A tag-driven release workflow is included at:
 
 ```bash
 .github/workflows/package-tauri.yml
 ```
 
-It runs automatically on pushes to `master` when desktop-related files change, and it can also be started manually from **Actions -> Package Linux Tauri App -> Run workflow**. The workflow builds the Linux AppImage and `.deb` bundles and uploads them as workflow artifacts.
+When you push a version tag such as:
 
-Tauri can also package **Windows** and **macOS** builds, but those bundles must be built on their respective operating systems. For now this repository keeps:
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+the workflow builds and publishes a GitHub Release with downloadable assets for:
+
+- Linux AppImage
+- Linux `.deb`
+- Windows Tauri installer
+- Windows WinForms EXE
+- macOS `.dmg`
+- macOS `.app.zip`
+
+The tag must match `package.json`'s version (for example, tag `v0.1.0` with `"version": "0.1.0"`), otherwise the release workflow fails fast.
+
+For collaborators and users, the normal download location is:
+
+- **GitHub -> Releases**
+
+Actions artifacts still exist during a run, but they are temporary CI artifacts. Releases are the durable download surface.
+
+Additional manual workflows are included for the other native targets:
+
+- `.github/workflows/package-tauri-windows.yml`
+- `.github/workflows/package-tauri-macos.yml`
+
+These run on GitHub-hosted `windows-latest` and `macos-latest` runners and can be started manually from the Actions tab:
+
+- **Package Windows Tauri App**
+- **Package macOS Tauri App**
+
+The repository now keeps:
 
 - the existing manual Windows WinForms EXE workflow
-- the automatic Linux Tauri workflow
+- the automatic tag-based release workflow
+- manual Windows Tauri and macOS Tauri workflows
 
 If you later want Tauri-based Windows or macOS packaging in Actions, you can add either GitHub-hosted `windows-latest` / `macos-latest` jobs or self-hosted runners, depending on your signing and environment requirements.
 

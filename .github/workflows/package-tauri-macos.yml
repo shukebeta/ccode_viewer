@@ -1,0 +1,69 @@
+name: Package macOS Tauri App
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos-tauri:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            server/pnpm-lock.yaml
+            viewer/pnpm-lock.yaml
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        run: pnpm --dir server install --frozen-lockfile
+
+      - name: Install viewer dependencies
+        run: pnpm --dir viewer install --frozen-lockfile
+
+      - name: Run server tests
+        run: pnpm run test:server
+
+      - name: Build macOS desktop bundle
+        run: pnpm run desktop:build
+
+      - name: Archive macOS app bundle
+        run: |
+          APP_PATH=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Could not find macOS .app bundle" >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "${APP_PATH}.zip"
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-macos-dmg-${{ github.sha }}
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Upload macOS app zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-macos-app-${{ github.sha }}
+          path: src-tauri/target/release/bundle/macos/*.app.zip

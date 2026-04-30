@@ -1,31 +1,46 @@
-name: Package Linux Tauri App
+name: Release Desktop Packages
 
 on:
   push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/package-tauri.yml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'scripts/prepare-tauri.mjs'
-      - 'server/**'
-      - 'server/pnpm-lock.yaml'
-      - 'shared/**'
-      - 'src-tauri/**'
-      - 'viewer/**'
-      - 'viewer/pnpm-lock.yaml'
-  workflow_dispatch:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: linux-tauri-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate tag matches package version
+        id: version
+        run: |
+          APP_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$APP_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $APP_VERSION" >&2
+            exit 1
+          fi
+
   build-linux-tauri:
+    needs: validate-version
     runs-on: ubuntu-latest
 
     steps:
@@ -82,10 +97,168 @@ jobs:
       - name: Build desktop bundles
         run: pnpm run desktop:build
 
-      - name: Upload bundle artifacts
+      - name: Upload Linux AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rewind-linux-bundle-${{ github.sha }}
+          name: linux-appimage-release-assets
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+
+      - name: Upload Linux deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb-release-assets
+          path: src-tauri/target/release/bundle/deb/*.deb
+
+  build-windows:
+    needs: validate-version
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            server/pnpm-lock.yaml
+            viewer/pnpm-lock.yaml
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        run: pnpm --dir server install --frozen-lockfile
+
+      - name: Install viewer dependencies
+        run: pnpm --dir viewer install --frozen-lockfile
+
+      - name: Run server tests
+        run: pnpm run test:server
+
+      - name: Build Windows Tauri bundle
+        run: pnpm run desktop:build
+
+      - name: Build Windows EXE
+        run: pnpm run package:exe
+
+      - name: Upload Windows Tauri artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-tauri-release-assets
+          path: src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: Upload Windows WinForms artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-winforms-release-assets
           path: |
-            src-tauri/target/release/bundle/appimage/**
-            src-tauri/target/release/bundle/deb/**
+            dist/rewind-win-x64.exe
+            dist/BUILD-INFO.txt
+
+  build-macos:
+    needs: validate-version
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            server/pnpm-lock.yaml
+            viewer/pnpm-lock.yaml
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install server dependencies
+        run: pnpm --dir server install --frozen-lockfile
+
+      - name: Install viewer dependencies
+        run: pnpm --dir viewer install --frozen-lockfile
+
+      - name: Run server tests
+        run: pnpm run test:server
+
+      - name: Build macOS desktop bundle
+        run: pnpm run desktop:build
+
+      - name: Archive macOS app bundle
+        run: |
+          APP_PATH=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Could not find macOS .app bundle" >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "${APP_PATH}.zip"
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-release-assets
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Upload macOS app zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app-release-assets
+          path: src-tauri/target/release/bundle/macos/*.app.zip
+
+  publish-release:
+    needs:
+      - validate-version
+      - build-linux-tauri
+      - build-windows
+      - build-macos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-release-assets'
+          merge-multiple: true
+          path: release-assets
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          name: Rewind ${{ github.ref_name }}
+          files: |
+            release-assets/*.AppImage
+            release-assets/*.deb
+            release-assets/*.dmg
+            release-assets/*.exe
+            release-assets/*.zip
+            release-assets/BUILD-INFO.txt
