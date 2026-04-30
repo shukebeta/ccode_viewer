@@ -40,6 +40,25 @@ npm run dev:viewer
 
 Then open http://localhost:6174 in your browser.
 
+## Frontend asset directory by environment
+
+`server/launcher.js` only decides the static asset directory for the packaged-style app flow (`npm run start:app` and desktop packaging). The normal dev flow keeps using the Vite dev server from `viewer/`.
+
+| Environment | How it starts | Frontend assets come from |
+| --- | --- | --- |
+| Web development | `npm run dev` or `npm run dev:viewer` | Vite serves the app directly from `viewer/` source files |
+| Local packaged-style launch | `npm run start:app` after `npm run build:viewer` | `viewer/dist` |
+| Windows EXE package | `pnpm run package:exe` output | `server/public` inside the packaged app payload |
+| Tauri desktop package/dev host | `pnpm run package:tauri` or `pnpm run desktop:dev` | `server/public` inside the prepared desktop payload |
+| Explicit override | Any launcher-based flow with `CCODE_VIEWER_PUBLIC_DIR=<path>` | The directory from `CCODE_VIEWER_PUBLIC_DIR` |
+
+Launcher resolution order is:
+
+1. `CCODE_VIEWER_PUBLIC_DIR`
+2. `server/public`
+3. `viewer/dist`
+4. Fail during startup if the chosen directory still has no `index.html`
+
 ## Windows EXE packaging
 
 The app can be packaged as a **single Windows EXE** that opens a native desktop window and renders the viewer inside an embedded **WebView2** control.
@@ -123,7 +142,7 @@ The Tauri build first prepares `src-tauri/resources/app` with:
 
 - the packaged server sources and production dependencies
 - the shared helpers
-- the production viewer build under `server/public`
+- the production viewer build copied into `server/public`
 - build metadata used by the desktop launcher
 
 Typical outputs:

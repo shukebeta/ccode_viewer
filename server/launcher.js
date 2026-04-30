@@ -10,10 +10,13 @@ const PORT_SCAN_LIMIT = 20
 const LOCAL_PUBLIC_DIR = path.join(__dirname, 'public')
 const VIEWER_DIST_DIR = path.join(__dirname, '..', 'viewer', 'dist')
 
-function resolvePublicDir() {
-  if (process.env.CCODE_VIEWER_PUBLIC_DIR) return process.env.CCODE_VIEWER_PUBLIC_DIR
-  if (fs.existsSync(path.join(LOCAL_PUBLIC_DIR, 'index.html'))) return LOCAL_PUBLIC_DIR
-  if (fs.existsSync(path.join(VIEWER_DIST_DIR, 'index.html'))) return VIEWER_DIST_DIR
+function resolvePublicDir(options = {}) {
+  const env = options.env || process.env
+  const fileExists = options.fileExists || fs.existsSync
+
+  if (env.CCODE_VIEWER_PUBLIC_DIR) return env.CCODE_VIEWER_PUBLIC_DIR
+  if (fileExists(path.join(LOCAL_PUBLIC_DIR, 'index.html'))) return LOCAL_PUBLIC_DIR
+  if (fileExists(path.join(VIEWER_DIST_DIR, 'index.html'))) return VIEWER_DIST_DIR
   return LOCAL_PUBLIC_DIR
 }
 

@@ -12,6 +12,18 @@ npm start
 
 Server will run on http://localhost:6173
 
+## Launcher static asset resolution
+
+`server.js` serves the API in normal development. `launcher.js` is the entry point for packaged-style runs such as `npm run start:app`, the Windows EXE, and the Tauri desktop host.
+
+When `launcher.js` needs frontend files, it resolves them in this order:
+
+1. `CCODE_VIEWER_PUBLIC_DIR` if set
+2. `server/public` for packaged desktop payloads
+3. `viewer/dist` for local repository builds created by `npm run build:viewer`
+
+If none of those locations contains `index.html`, launch fails with a build-assets error instead of silently serving the wrong directory.
+
 ## What This Provides
 
 - REST API for listing projects and sessions
