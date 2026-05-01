@@ -57,124 +57,54 @@ function resolveProjectPath(projectName, pathImpl = path) {
   let currentPath = pathImpl.sep
 
   while (remaining.length > 0) {
-    // Find next '-' position
-    let nextDashIndex = remaining.indexOf('-')
+    const candidateBoundaries = [remaining.length]
+    let searchIndex = 0
+    while (searchIndex < remaining.length) {
+      const boundary = remaining.indexOf('-', searchIndex)
+      if (boundary === -1) break
+      candidateBoundaries.push(boundary)
+      searchIndex = boundary + 1
+    }
 
+    let foundCandidate = false
+
+    for (let i = 0; i < candidateBoundaries.length; i++) {
+      const boundary = candidateBoundaries[i]
+      const candidatePart = remaining.substring(0, boundary)
+      const candidatePath = pathImpl.join(currentPath, candidatePart)
+      const candidatePathWithUnderscore = pathImpl.join(currentPath, candidatePart.replace(/-/g, '_'))
+      const candidatePathWithDot = pathImpl.join(currentPath, candidatePart.replace(/-/g, '.'))
+
+      const resolvedCandidatePath = pathImpl.resolve(drivePrefix + candidatePath)
+      const resolvedCandidatePathWithUnderscore = pathImpl.resolve(drivePrefix + candidatePathWithUnderscore)
+      const resolvedCandidatePathWithDot = pathImpl.resolve(drivePrefix + candidatePathWithDot)
+
+      if (fsExistsSync(resolvedCandidatePath)) {
+        currentPath = candidatePath
+      } else if (fsExistsSync(resolvedCandidatePathWithUnderscore)) {
+        currentPath = candidatePathWithUnderscore
+      } else if (fsExistsSync(resolvedCandidatePathWithDot)) {
+        currentPath = candidatePathWithDot
+      } else {
+        continue
+      }
+
+      remaining = boundary === remaining.length ? '' : remaining.substring(boundary + 1)
+      foundCandidate = true
+      break
+    }
+
+    if (foundCandidate) continue
+
+    const nextDashIndex = remaining.indexOf('-')
     if (nextDashIndex === -1) {
-      // If no more '-', treat the rest as one part
       currentPath = pathImpl.join(currentPath, remaining)
       break
     }
 
-    // Check path when '-' is replaced with path separator
-    const possiblePart = remaining.substring(0, nextDashIndex)
-    const possiblePathAsSlash = pathImpl.join(currentPath, possiblePart)
-
-    // Also check path when '-' is replaced with '_'
-    const possiblePathAsUnderscore = pathImpl.join(currentPath, possiblePart.replace(/-/g, '_'))
-
-    // Also check path when '-' is replaced with '.'
-    const possiblePathAsDot = pathImpl.join(currentPath, possiblePart.replace(/-/g, '.'))
-
-    // Resolve paths to handle Windows drive letters and normalize
-    const resolvedPathAsSlash = pathImpl.resolve(drivePrefix + possiblePathAsSlash)
-    const resolvedPathAsUnderscore = pathImpl.resolve(drivePrefix + possiblePathAsUnderscore)
-    const resolvedPathAsDot = pathImpl.resolve(drivePrefix + possiblePathAsDot)
-
-    if (fsExistsSync(resolvedPathAsSlash)) {
-      // If directory exists, separate with path separator
-      currentPath = possiblePathAsSlash
-      remaining = remaining.substring(nextDashIndex + 1)
-    } else if (fsExistsSync(resolvedPathAsUnderscore)) {
-      // If exists when replaced with '_', process with '_'
-      currentPath = possiblePathAsUnderscore
-      remaining = remaining.substring(nextDashIndex + 1)
-    } else if (fsExistsSync(resolvedPathAsDot)) {
-      // If exists when replaced with '.', process with '.'
-      currentPath = possiblePathAsDot
-      remaining = remaining.substring(nextDashIndex + 1)
-    } else {
-      // If directory doesn't exist, try combining multiple segments
-      let foundValid = false
-      let searchIndex = nextDashIndex + 1
-
-      while (searchIndex < remaining.length) {
-        const nextSearchIndex = remaining.indexOf('-', searchIndex)
-        if (nextSearchIndex === -1) {
-          // Search to the end
-          const testPart = remaining
-          const testPath = pathImpl.join(currentPath, testPart)
-          const testPartWithUnderscore = testPart.replace(/-/g, '_')
-          const testPathWithUnderscore = pathImpl.join(currentPath, testPartWithUnderscore)
-          const testPartWithDot = testPart.replace(/-/g, '.')
-          const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
-
-          // Resolve paths for Windows compatibility
-          // Resolve paths for Windows compatibility
-          const resolvedTestPath = pathImpl.resolve(drivePrefix + testPath)
-          const resolvedTestPathWithUnderscore = pathImpl.resolve(drivePrefix + testPathWithUnderscore)
-          const resolvedTestPathWithDot = pathImpl.resolve(drivePrefix + testPathWithDot)
-
-          if (fsExistsSync(resolvedTestPath)) {
-            currentPath = testPath
-            remaining = ''
-            foundValid = true
-          } else if (fsExistsSync(resolvedTestPathWithUnderscore)) {
-            currentPath = testPathWithUnderscore
-            remaining = ''
-            foundValid = true
-          } else if (fsExistsSync(resolvedTestPathWithDot)) {
-            currentPath = testPathWithDot
-            remaining = ''
-            foundValid = true
-          }
-          break
-        }
-
-        // Test including up to next '-'
-        const testPart = remaining.substring(0, nextSearchIndex)
-        const testPath = pathImpl.join(currentPath, testPart)
-
-        // Also test path with '_'
-        const testPartWithUnderscore = testPart.replace(/-/g, '_')
-        const testPathWithUnderscore = pathImpl.join(currentPath, testPartWithUnderscore)
-
-        // Also test path with '.'
-        const testPartWithDot = testPart.replace(/-/g, '.')
-        const testPathWithDot = pathImpl.join(currentPath, testPartWithDot)
-
-        // Resolve paths for Windows compatibility
-        // Resolve paths for Windows compatibility
-        const resolvedTestPath = pathImpl.resolve(drivePrefix + testPath)
-        const resolvedTestPathWithUnderscore = pathImpl.resolve(drivePrefix + testPathWithUnderscore)
-        const resolvedTestPathWithDot = pathImpl.resolve(drivePrefix + testPathWithDot)
-
-        if (fsExistsSync(resolvedTestPath)) {
-          currentPath = testPath
-          remaining = remaining.substring(nextSearchIndex + 1)
-          foundValid = true
-          break
-        } else if (fsExistsSync(resolvedTestPathWithUnderscore)) {
-          currentPath = testPathWithUnderscore
-          remaining = remaining.substring(nextSearchIndex + 1)
-          foundValid = true
-          break
-        } else if (fsExistsSync(resolvedTestPathWithDot)) {
-          currentPath = testPathWithDot
-          remaining = remaining.substring(nextSearchIndex + 1)
-          foundValid = true
-          break
-        }
-
-        searchIndex = nextSearchIndex + 1
-      }
-
-      if (!foundValid) {
-        // If directory doesn't exist, fall back to treating first part as directory
-        currentPath = pathImpl.join(currentPath, possiblePart)
-        remaining = remaining.substring(nextDashIndex + 1)
-      }
-    }
+    // If no exact match exists, fall back to treating the first dash as a path separator.
+    currentPath = pathImpl.join(currentPath, remaining.substring(0, nextDashIndex))
+    remaining = remaining.substring(nextDashIndex + 1)
   }
 
   // Use the currentPath as the result since it's already built correctly
@@ -440,6 +370,10 @@ async function getProjects() {
         const existing = projectMap.get(projectId)
         existing.sources.push('gcopilot')
         existing.sessionCount.gcopilot = copilotData.sessions.length
+        if (copilotData.projectPath) {
+          existing.name = copilotData.projectPath
+          existing.path = copilotData.projectPath
+        }
 
         // Update lastUpdated to the most recent
         const existingDate = existing.lastUpdated ? new Date(existing.lastUpdated) : null
@@ -450,7 +384,7 @@ async function getProjects() {
         // New project only in Copilot
         projectMap.set(projectId, {
           id: projectId,
-          name: resolveProjectPath(projectId),
+          name: copilotData.projectPath,
           path: copilotData.projectPath,
           sources: ['gcopilot'],
           sessionCount: {

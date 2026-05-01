@@ -76,9 +76,8 @@ export default {
         const parts = raw.split(/[\\\/]/).filter(Boolean)
         return parts.length ? parts[parts.length - 1] : raw
       }
-      // Fallback: take last segment after '-' and replace dashes with spaces
-      const parts = raw.split('-').filter(Boolean)
-      return parts.length ? parts[parts.length - 1].replace(/-/g, ' ') : raw
+      // Preserve plain project names like "gridai-auto-job".
+      return raw
     },
     displayPath(p) {
       // Show the resolved name (which may already be a full path) or fallback to stored path
