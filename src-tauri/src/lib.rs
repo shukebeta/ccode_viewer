@@ -440,10 +440,16 @@ fn bootstrap(window: tauri::WebviewWindow, app: tauri::AppHandle, state: Arc<App
     });
 }
 
+#[tauri::command]
+fn open_in_browser(url: String, app: tauri::AppHandle) -> Result<(), String> {
+    app.shell().open(&url, None).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![open_in_browser])
         .setup(|app| {
             let state = Arc::new(AppState::default());
             app.manage(state.clone());

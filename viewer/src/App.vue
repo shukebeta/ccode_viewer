@@ -1,7 +1,13 @@
 <template>
   <div class="app-root">
     <div class="app-header">
-      <div class="app-brand" aria-label="Rewind">
+      <div
+        class="app-brand"
+        :class="{ 'app-brand--interactive': isTauri }"
+        :title="isTauri ? 'Rewind — Navigate and explore your AI coding sessions\n(Double-click to open in browser)' : undefined"
+        @dblclick="openInBrowser"
+        aria-label="Rewind"
+      >
         <img class="app-brand-mark" src="/rewind-icon.svg" alt="" />
         <span class="app-brand-name">Rewind</span>
       </div>
@@ -59,6 +65,7 @@ export default {
   components: { ProjectSelector, Sessions, SearchBox, SearchResults, TwoColumnViewer },
   data() {
     return {
+      isTauri: typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__,
       project: null,
       sessionFile: null,
       selectedSession: null,
@@ -71,6 +78,22 @@ export default {
       pendingInitialSessionSelection: false
     }
   },
+  mounted() {
+    if (this.isTauri) {
+      this._f5Handler = (e) => {
+        if (e.key === 'F5') {
+          e.preventDefault()
+          window.location.reload()
+        }
+      }
+      document.addEventListener('keydown', this._f5Handler)
+    }
+  },
+  beforeUnmount() {
+    if (this._f5Handler) {
+      document.removeEventListener('keydown', this._f5Handler)
+    }
+  },
   computed: {
     sessionName() {
       if (!this.sessionFile) return ''
@@ -80,6 +103,10 @@ export default {
     }
   },
   methods: {
+    openInBrowser() {
+      if (!this.isTauri) return
+      window.__TAURI_INTERNALS__.invoke('open_in_browser', { url: window.location.origin })
+    },
     onProjectsLoaded(projects) {
       if (this.hasResolvedInitialProjectSelection) return
 
@@ -216,6 +243,11 @@ export default {
   gap: 10px;
   flex: 0 0 auto;
   min-width: max-content;
+}
+
+.app-brand--interactive {
+  cursor: pointer;
+  user-select: none;
 }
 
 .app-brand-mark {
