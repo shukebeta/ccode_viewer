@@ -271,10 +271,71 @@ async function readCopilotWorkspace(sessionDir) {
   }
 }
 
+async function extractCopilotProjectPath(sessionFilePath) {
+  try {
+    const content = await fs.readFile(sessionFilePath, 'utf8')
+    const lines = content.trim().split('\n')
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line)
+        const directPath = data?.data?.arguments?.path
+        const toolRequests = Array.isArray(data?.data?.toolRequests) ? data.data.toolRequests : []
+        const requestPath = toolRequests.find((request) => request?.arguments?.path)?.arguments?.path
+        const candidatePath = directPath || requestPath
+
+        if (!candidatePath || typeof candidatePath !== 'string') continue
+
+        const parts = candidatePath.split(/[\\/]/)
+        if (/^[A-Za-z]:\\/.test(candidatePath) || /^[A-Za-z]:\//.test(candidatePath)) {
+          if (parts.length > 4) return parts.slice(0, 4).join(path.sep)
+          return candidatePath
+        }
+
+        if (candidatePath.startsWith('/')) {
+          if (parts.length > 4) return parts.slice(0, 4).join(path.sep) || path.sep
+          return candidatePath
+        }
+      } catch (e) {
+        // Skip invalid JSON lines
+      }
+    }
+
+    return null
+  } catch (e) {
+    return null
+  }
+}
+
 async function resolveSessionFilePath(filePath) {
   const stat = await fs.stat(filePath)
   if (!stat.isDirectory()) return filePath
   return path.join(filePath, 'events.jsonl')
+}
+
+async function resolveCopilotProjectPath(sessionPath) {
+  try {
+    const stat = await fs.stat(sessionPath)
+    if (stat.isDirectory()) {
+      const workspace = await readCopilotWorkspace(sessionPath)
+      if (workspace?.cwd) return workspace.cwd
+
+      try {
+        const sessionFile = await resolveSessionFilePath(sessionPath)
+        return await extractCopilotProjectPath(sessionFile)
+      } catch (e) {
+        return null
+      }
+    }
+
+    if (path.extname(sessionPath).toLowerCase() === '.jsonl') {
+      return await extractCopilotProjectPath(sessionPath)
+    }
+  } catch (e) {
+    return null
+  }
+
+  return null
 }
 
 /**
@@ -288,25 +349,25 @@ async function getCopilotProjects() {
     const entries = await fs.readdir(COPILOT_SESSION_PATH, { withFileTypes: true })
 
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+      const isLegacyFile = entry.isFile() && path.extname(entry.name).toLowerCase() === '.jsonl'
+      if (!entry.isDirectory() && !isLegacyFile) continue
 
-      const sessionDir = path.join(COPILOT_SESSION_PATH, entry.name)
-      const workspace = await readCopilotWorkspace(sessionDir)
+      const sessionPath = path.join(COPILOT_SESSION_PATH, entry.name)
+      const projectPath = await resolveCopilotProjectPath(sessionPath)
+      if (!projectPath) continue
 
-      if (!workspace?.cwd) continue
-
-      const projectId = pathToClaudeDirName(workspace.cwd)
+      const projectId = pathToClaudeDirName(projectPath)
       let lastUpdated = null
       try {
-        const sessionFile = await resolveSessionFilePath(sessionDir)
+        const sessionFile = await resolveSessionFilePath(sessionPath)
         lastUpdated = (await fs.stat(sessionFile)).mtime
       } catch (e) {
-        lastUpdated = (await fs.stat(sessionDir)).mtime
+        lastUpdated = (await fs.stat(sessionPath)).mtime
       }
 
       if (!projectMap.has(projectId)) {
         projectMap.set(projectId, {
-          projectPath: workspace.cwd,
+          projectPath,
           sessions: [],
           lastUpdated
         })
@@ -430,7 +491,8 @@ async function parseCopilotSession(sessionDir) {
     }
 
     const lines = content.trim().split('\n')
-    const workspace = await readCopilotWorkspace(sessionDir)
+    const sessionStat = await fs.stat(sessionDir)
+    const workspace = sessionStat.isDirectory() ? await readCopilotWorkspace(sessionDir) : null
 
     let startTime, endTime
     let messageCount = 0
@@ -512,18 +574,18 @@ async function getCopilotSessions(projectId) {
     const entries = await fs.readdir(COPILOT_SESSION_PATH, { withFileTypes: true })
 
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+      const isLegacyFile = entry.isFile() && path.extname(entry.name).toLowerCase() === '.jsonl'
+      if (!entry.isDirectory() && !isLegacyFile) continue
 
-      const sessionDir = path.join(COPILOT_SESSION_PATH, entry.name)
-      const workspace = await readCopilotWorkspace(sessionDir)
+      const sessionPath = path.join(COPILOT_SESSION_PATH, entry.name)
+      const projectPath = await resolveCopilotProjectPath(sessionPath)
+      if (!projectPath) continue
 
-      if (!workspace?.cwd) continue
-
-      const sessionProjectId = pathToClaudeDirName(workspace.cwd)
+      const sessionProjectId = pathToClaudeDirName(projectPath)
 
       // Only include sessions for the requested project
       if (sessionProjectId === projectId) {
-        const session = await parseCopilotSession(sessionDir)
+        const session = await parseCopilotSession(sessionPath)
         if (session && session.messageCount >= 3) {
           sessions.push(session)
         }
@@ -662,7 +724,15 @@ async function readSessionFile(filePath) {
   }
 }
 
-module.exports = { getProjects, getSessions, readSessionFile, deleteSession, resolveSessionFilePath }
+module.exports = {
+  getProjects,
+  getSessions,
+  readSessionFile,
+  deleteSession,
+  resolveSessionFilePath,
+  extractCopilotProjectPath,
+  resolveCopilotProjectPath
+}
 
 function mapCopilotToolName(name) {
   const map = {

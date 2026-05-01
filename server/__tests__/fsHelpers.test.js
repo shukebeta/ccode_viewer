@@ -1,4 +1,4 @@
-const { mapSessionMessages, resolveSessionFilePath } = require('../fsHelpers')
+const { mapSessionMessages, resolveSessionFilePath, extractCopilotProjectPath, resolveCopilotProjectPath } = require('../fsHelpers')
 
 // We'll create helper to write a temporary jsonl file for test purposes
 const fs = require('fs')
@@ -27,6 +27,23 @@ describe('mapSessionMessages', () => {
 
     await expect(resolveSessionFilePath(dir)).resolves.toBe(file)
     await expect(resolveSessionFilePath(file)).resolves.toBe(file)
+  })
+
+  it('extracts project paths from legacy Copilot jsonl sessions', async () => {
+    const file = writeTempJsonl([
+      {
+        type: 'tool.execution_start',
+        data: {
+          toolName: 'view',
+          arguments: {
+            path: 'D:\\git\\xemt-core\\DFX\\Lakros.DFX.Business\\Settlements\\PromoteDisbursementValidator.cs'
+          }
+        }
+      }
+    ])
+
+    await expect(extractCopilotProjectPath(file)).resolves.toBe('D:' + path.sep + path.join('git', 'xemt-core', 'DFX'))
+    await expect(resolveCopilotProjectPath(file)).resolves.toBe('D:' + path.sep + path.join('git', 'xemt-core', 'DFX'))
   })
 
   it('classifies tool_use and tool_result as assistant', async () => {
