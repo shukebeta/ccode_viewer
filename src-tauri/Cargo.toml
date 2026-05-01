@@ -1,6 +1,6 @@
 [package]
 name = "rewind"
-version = "0.1.0"
+version = "0.9.0"
 description = "Cross-platform desktop host for the Rewind session viewer"
 authors = ["shukebeta"]
 license = "MIT"
