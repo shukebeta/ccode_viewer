@@ -39,7 +39,7 @@
     </div>
     <div class="right">
       <h3 class="column-header">Conversation</h3>
-      <div class="right-scroll">
+      <div class="right-scroll" @copy="handleConversationCopy">
         <div v-if="visibleAllMessages.length === 0">No messages</div>
         <ul>
   <li
@@ -509,6 +509,37 @@ export default {
       } catch (e) { console.error('copyRaw failed', e); a._copiedRaw = false }
       finally { setTimeout(() => { a._copiedRaw = false }, 1500) }
     },
+    handleConversationCopy(event) {
+      const container = event.currentTarget
+      if (!(container instanceof Element) || !event.clipboardData) return
+
+      const selection = window.getSelection ? window.getSelection() : null
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return
+
+      const anchorNode = selection.anchorNode
+      const focusNode = selection.focusNode
+      if (!anchorNode || !focusNode || !container.contains(anchorNode) || !container.contains(focusNode)) return
+
+      const wrapper = document.createElement('div')
+      for (let index = 0; index < selection.rangeCount; index += 1) {
+        wrapper.appendChild(selection.getRangeAt(index).cloneContents())
+      }
+
+      this.stripCopiedConversationUi(wrapper)
+
+      const html = wrapper.innerHTML.trim()
+      const text = selection.toString()
+      if (!html && !text) return
+
+      event.preventDefault()
+      if (html) event.clipboardData.setData('text/html', html)
+      if (text) event.clipboardData.setData('text/plain', text)
+    },
+    stripCopiedConversationUi(root) {
+      root.querySelectorAll('.assistant-toolbar, .copy-group, .copy-btn, .collapsible-toggle').forEach((node) => {
+        node.remove()
+      })
+    },
     extractText(c) {
       if (!c) return ''
       if (typeof c === 'string') return c
@@ -807,6 +838,12 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
 
 .copy-group { display: flex; align-items: center; gap: 6px; opacity: 0; transform: translateY(-2px); transition: opacity 150ms ease, transform 150ms ease; pointer-events: none }
 .assistant-item:hover .copy-group, .assistant-item:focus-within .copy-group, .copy-group:focus-within { opacity: 1; transform: translateY(0); pointer-events: auto }
+.assistant-toolbar,
+.copy-group,
+.copy-btn {
+  user-select: none;
+  -webkit-user-select: none;
+}
 .assistant-card.muted {
   opacity: 0.72;
   background: transparent;

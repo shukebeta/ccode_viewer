@@ -73,6 +73,13 @@ function createApp(options = {}) {
     const file = req.query.file
     if (!file) return res.status(400).json({ error: 'file query required' })
 
+    let watchFile
+    try {
+      watchFile = await fsHelpers.resolveSessionFilePath(file)
+    } catch (err) {
+      return res.status(404).json({ error: 'file not found' })
+    }
+
     // basic headers for SSE
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
@@ -82,7 +89,7 @@ function createApp(options = {}) {
     // Send a comment to keep connection alive for some proxies
     res.write(': connected\n\n')
 
-    fileWatcher.subscribe(file, res)
+    fileWatcher.subscribe(watchFile, res)
 
     // On client close, fileWatcher will remove the subscriber via res.on('close')
   })

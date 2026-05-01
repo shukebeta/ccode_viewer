@@ -1,4 +1,4 @@
-const { mapSessionMessages } = require('../fsHelpers')
+const { mapSessionMessages, resolveSessionFilePath } = require('../fsHelpers')
 
 // We'll create helper to write a temporary jsonl file for test purposes
 const fs = require('fs')
@@ -12,7 +12,23 @@ function writeTempJsonl(lines) {
   return file
 }
 
+function writeTempCopilotSession(lines) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-session-'))
+  const file = path.join(dir, 'events.jsonl')
+  fs.writeFileSync(file, lines.map(l => JSON.stringify(l)).join('\n'))
+  return { dir, file }
+}
+
 describe('mapSessionMessages', () => {
+  it('resolves Copilot session directories to events.jsonl for shared file handling', async () => {
+    const { dir, file } = writeTempCopilotSession([
+      { type: 'session.start', data: { sessionId: 's1' } }
+    ])
+
+    await expect(resolveSessionFilePath(dir)).resolves.toBe(file)
+    await expect(resolveSessionFilePath(file)).resolves.toBe(file)
+  })
+
   it('classifies tool_use and tool_result as assistant', async () => {
     const lines = [
       { type: 'user', uuid: 'u1', timestamp: '2025-09-20T00:00:00.000Z', message: { content: 'hello' } },

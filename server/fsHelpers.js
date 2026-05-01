@@ -271,6 +271,12 @@ async function readCopilotWorkspace(sessionDir) {
   }
 }
 
+async function resolveSessionFilePath(filePath) {
+  const stat = await fs.stat(filePath)
+  if (!stat.isDirectory()) return filePath
+  return path.join(filePath, 'events.jsonl')
+}
+
 /**
  * Get all projects from Copilot sessions (new directory-based format)
  * Returns a map of projectId -> { sessions: [...], lastUpdated: Date }
@@ -290,21 +296,27 @@ async function getCopilotProjects() {
       if (!workspace?.cwd) continue
 
       const projectId = pathToClaudeDirName(workspace.cwd)
-      const stats = await fs.stat(sessionDir)
+      let lastUpdated = null
+      try {
+        const sessionFile = await resolveSessionFilePath(sessionDir)
+        lastUpdated = (await fs.stat(sessionFile)).mtime
+      } catch (e) {
+        lastUpdated = (await fs.stat(sessionDir)).mtime
+      }
 
       if (!projectMap.has(projectId)) {
         projectMap.set(projectId, {
           projectPath: workspace.cwd,
           sessions: [],
-          lastUpdated: stats.mtime
+          lastUpdated
         })
       }
 
       const project = projectMap.get(projectId)
       project.sessions.push(entry.name)
 
-      if (stats.mtime > project.lastUpdated) {
-        project.lastUpdated = stats.mtime
+      if (lastUpdated > project.lastUpdated) {
+        project.lastUpdated = lastUpdated
       }
     }
   } catch (e) {
@@ -407,8 +419,8 @@ async function getProjects() {
  */
 async function parseCopilotSession(sessionDir) {
   try {
-    const stats = await fs.stat(sessionDir)
-    const eventsPath = path.join(sessionDir, 'events.jsonl')
+    const eventsPath = await resolveSessionFilePath(sessionDir)
+    const stats = await fs.stat(eventsPath)
 
     let content
     try {
@@ -637,13 +649,7 @@ async function getSessions(projectName) {
 
 async function readSessionFile(filePath) {
   try {
-    // Handle Copilot session directories (contain events.jsonl)
-    let targetFile = filePath
-    const stat = await fs.stat(filePath)
-    if (stat.isDirectory()) {
-      targetFile = path.join(filePath, 'events.jsonl')
-    }
-
+    const targetFile = await resolveSessionFilePath(filePath)
     const content = await fs.readFile(targetFile, 'utf8')
     const lines = content.trim().split('\n')
     const messages = []
@@ -656,7 +662,7 @@ async function readSessionFile(filePath) {
   }
 }
 
-module.exports = { getProjects, getSessions, readSessionFile, deleteSession }
+module.exports = { getProjects, getSessions, readSessionFile, deleteSession, resolveSessionFilePath }
 
 function mapCopilotToolName(name) {
   const map = {
