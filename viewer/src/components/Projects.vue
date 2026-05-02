@@ -62,7 +62,8 @@ export default {
     sourceLabel(src) {
       const labels = {
         claudecode: 'Claude',
-        gcopilot: 'Copilot'
+        gcopilot: 'Copilot',
+        codex: 'Codex'
       }
       return labels[src] || src
     },
@@ -72,6 +73,7 @@ export default {
         const parts = []
         if (p.sessionCount.claudecode) parts.push(`${p.sessionCount.claudecode} Claude`)
         if (p.sessionCount.gcopilot) parts.push(`${p.sessionCount.gcopilot} Copilot`)
+        if (p.sessionCount.codex) parts.push(`${p.sessionCount.codex} Codex`)
         return parts.join(', ')
       }
       // Fallback for old format: sessionCount is a number

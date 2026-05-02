@@ -1,4 +1,10 @@
-const { mapSessionMessages, resolveSessionFilePath, extractCopilotProjectPath, resolveCopilotProjectPath } = require('../fsHelpers')
+const {
+  mapSessionMessages,
+  resolveSessionFilePath,
+  extractCopilotProjectPath,
+  resolveCopilotProjectPath,
+  extractCodexProjectPath
+} = require('../fsHelpers')
 
 // We'll create helper to write a temporary jsonl file for test purposes
 const fs = require('fs')
@@ -15,6 +21,13 @@ function writeTempJsonl(lines) {
 function writeTempCopilotSession(lines) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-session-'))
   const file = path.join(dir, 'events.jsonl')
+  fs.writeFileSync(file, lines.map(l => JSON.stringify(l)).join('\n'))
+  return { dir, file }
+}
+
+function writeTempCodexSession(lines) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-session-'))
+  const file = path.join(dir, 'rollout-session.jsonl')
   fs.writeFileSync(file, lines.map(l => JSON.stringify(l)).join('\n'))
   return { dir, file }
 }
@@ -44,6 +57,22 @@ describe('mapSessionMessages', () => {
 
     await expect(extractCopilotProjectPath(file)).resolves.toBe('D:' + path.sep + path.join('git', 'xemt-core', 'DFX'))
     await expect(resolveCopilotProjectPath(file)).resolves.toBe('D:' + path.sep + path.join('git', 'xemt-core', 'DFX'))
+  })
+
+  it('extracts project paths from Codex session metadata', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: {
+          id: 'codex-path-test',
+          timestamp: '2026-05-02T00:00:00.000Z',
+          cwd: '/tmp/codex-path-test/gridai-auto-job'
+        }
+      }
+    ])
+
+    await expect(extractCodexProjectPath(file)).resolves.toBe('/tmp/codex-path-test/gridai-auto-job')
   })
 
   it('classifies tool_use and tool_result as assistant', async () => {
@@ -160,5 +189,165 @@ describe('mapSessionMessages', () => {
     expect(out.mapping.u1).toHaveLength(2)
     expect(JSON.stringify(out.mapping.u1[0].content)).toContain('expert code reviewer')
     expect(JSON.stringify(out.mapping.u1[1].content)).toContain('PR Review feedback')
+  })
+
+  it('maps Codex sessions and strips environment context from user previews', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: {
+          id: 'codex-mapping-test',
+          timestamp: '2026-05-02T00:00:00.000Z',
+          cwd: '/tmp/codex-mapping-test'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: '<environment_context>\n  <cwd>/tmp/codex-mapping-test</cwd>\n</environment_context>'
+            },
+            { type: 'input_text', text: 'actual codex prompt' }
+          ]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'assistant answer' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+
+    expect(out.users).toHaveLength(1)
+    expect(out.users[0].preview).toBe('actual codex prompt')
+    expect(JSON.stringify(out.users[0].content)).not.toContain('environment_context')
+    expect(out.mapping[out.users[0].id]).toHaveLength(1)
+    expect(JSON.stringify(out.mapping[out.users[0].id][0].content)).toContain('assistant answer')
+  })
+
+  it('normalizes Codex exec_command tool calls using exec_command_end output', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: {
+          id: 'codex-tool-test',
+          timestamp: '2026-05-02T00:00:00.000Z',
+          cwd: '/tmp/codex-tool-test'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'show me the file' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          call_id: 'call_read_1',
+          name: 'exec_command',
+          arguments: JSON.stringify({
+            cmd: "sed -n '1,20p' README.md",
+            workdir: '/tmp/codex-tool-test'
+          })
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'exec_command_end',
+          call_id: 'call_read_1',
+          parsed_cmd: [
+            {
+              type: 'read',
+              cmd: "sed -n '1,20p' README.md",
+              name: 'README.md',
+              path: 'README.md'
+            }
+          ],
+          aggregated_output: 'README contents',
+          exit_code: 0
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const assistantEntries = out.mapping[userId]
+
+    expect(assistantEntries).toHaveLength(1)
+    expect(JSON.stringify(assistantEntries[0].content)).toContain('"name":"Read"')
+    expect(JSON.stringify(assistantEntries[0].content)).toContain('README contents')
+  })
+
+  it('skips Codex update_plan with empty content instead of creating broken tool_use blocks', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: {
+          id: 'codex-empty-plan-test',
+          timestamp: '2026-05-02T00:00:00.000Z',
+          cwd: '/tmp/empty-plan-test'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'do something' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          call_id: 'call_plan_empty',
+          name: 'update_plan',
+          arguments: '{}'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'done' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const brokenToolUse = entries.find(e =>
+      Array.isArray(e.content) && e.content.some(c => c.type === 'tool_use' && !c.name)
+    )
+    expect(brokenToolUse).toBeUndefined()
+    expect(entries.some(e => JSON.stringify(e.content).includes('done'))).toBe(true)
   })
 })

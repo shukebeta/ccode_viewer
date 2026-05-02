@@ -19,7 +19,7 @@
             <div class="session-time">
               {{ formatTime(s.lastTime || s.startTime) }}
               <span class="muted">({{ s.messageCount }})</span>
-              <span v-if="s.source === 'gcopilot'" :class="['source-badge', s.source]">
+              <span v-if="s.source && s.source !== 'claudecode'" :class="['source-badge', s.source]">
                 {{ sourceLabel(s.source) }}
               </span>
               <span v-if="s.branches && s.branches.length" class="branch-badge">
@@ -138,7 +138,8 @@ export default {
     sourceLabel(src) {
       const labels = {
         claudecode: 'Claude',
-        gcopilot: 'Copilot'
+        gcopilot: 'Copilot',
+        codex: 'Codex'
       }
       return labels[src] || src
     }
