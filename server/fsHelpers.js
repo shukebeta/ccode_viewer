@@ -1366,6 +1366,7 @@ function normalizeCodexEvents(msgs) {
   const execCommandEvents = new Map()
   const customToolOutputs = new Map()
   const patchApplyEvents = new Map()
+  const assistantMessageTexts = new Set()
 
   for (const msg of msgs) {
     if (msg.type === 'response_item' && msg.payload?.type === 'function_call_output' && msg.payload.call_id) {
@@ -1382,6 +1383,12 @@ function normalizeCodexEvents(msgs) {
 
     if (msg.type === 'event_msg' && msg.payload?.type === 'patch_apply_end' && msg.payload.call_id) {
       patchApplyEvents.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'response_item' && msg.payload?.type === 'message' && msg.payload.role === 'assistant') {
+      const content = normalizeCodexAssistantContent(msg.payload.content)
+      const text = extractPlainText(content).trim()
+      if (text) assistantMessageTexts.add(text)
     }
   }
 
@@ -1546,8 +1553,19 @@ function normalizeCodexEvents(msgs) {
       continue
     }
 
-    // Agent messages are duplicates of response_item/message/assistant — skip
+    // Preserve commentary/final_answer updates unless the same text is also
+    // present in a canonical assistant response_item message.
     if (msg.type === 'event_msg' && msg.payload?.type === 'agent_message') {
+      const text = typeof msg.payload.message === 'string' ? msg.payload.message.trim() : ''
+      if (!text || assistantMessageTexts.has(text)) continue
+
+      assistants.push({
+        id: `event_${index}`,
+        content: [{ type: 'text', text }],
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
       continue
     }
 

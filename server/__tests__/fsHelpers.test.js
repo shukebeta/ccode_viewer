@@ -546,7 +546,42 @@ describe('mapSessionMessages', () => {
     expect(JSON.stringify(toolEntry.content)).toContain('mcp result here')
   })
 
-  it('skips Codex agent_message events (duplicates of response_item assistant)', async () => {
+  it('preserves unique Codex agent_message events as assistant text', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'agent-commentary-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'hello' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'agent_message',
+          message: 'working through the files now',
+          phase: 'commentary'
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    expect(entries).toHaveLength(1)
+    expect(JSON.stringify(entries[0].content)).toContain('working through the files now')
+  })
+
+  it('skips duplicate Codex agent_message events when assistant response_item has same text', async () => {
     const { file } = writeTempCodexSession([
       {
         timestamp: '2026-05-02T00:00:00.000Z',
