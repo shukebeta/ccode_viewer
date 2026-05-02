@@ -261,7 +261,6 @@ function normalizeCodexAssistantContent(content) {
     }
   }
 
-  if (out.length === 1 && out[0].type === 'text') return out[0].text
   return out
 }
 
