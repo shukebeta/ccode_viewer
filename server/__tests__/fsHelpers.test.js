@@ -398,6 +398,52 @@ describe('mapSessionMessages', () => {
     expect(JSON.stringify(thinking.content)).toContain('step 1\\nstep 2')
   })
 
+  it('skips Codex reasoning blocks with empty or missing summary', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'empty-reasoning-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'hello' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'reasoning',
+          summary: [],
+          encrypted_content: 'abc123'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'answer' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    expect(entries.every(e =>
+      !Array.isArray(e.content) || !e.content.some(c => c.type === 'thinking')
+    )).toBe(true)
+    expect(entries.some(e => JSON.stringify(e.content).includes('answer'))).toBe(true)
+  })
+
   it('maps Codex custom_tool_call with patch_apply_end result', async () => {
     const { file } = writeTempCodexSession([
       {

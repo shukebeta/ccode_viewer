@@ -1468,11 +1468,13 @@ function normalizeCodexEvents(msgs) {
       continue
     }
 
-    // Reasoning / thinking blocks
+    // Reasoning / thinking blocks (encrypted content, skip when no summary)
     if (msg.type === 'response_item' && msg.payload?.type === 'reasoning') {
+      const summary = Array.isArray(msg.payload.summary) ? msg.payload.summary.filter(Boolean).join('\n').trim() : ''
+      if (!summary) continue
       assistants.push({
         id: `reasoning_${index}`,
-        content: [{ type: 'thinking', thinking: msg.payload.summary?.join('\n') || 'thinking...' }],
+        content: [{ type: 'thinking', thinking: summary }],
         timestamp: msg.timestamp,
         raw: msg,
         index
