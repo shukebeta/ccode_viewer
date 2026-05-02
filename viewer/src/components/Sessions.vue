@@ -38,6 +38,7 @@
 
 <script>
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { SOURCE_LABELS } from '../constants.js'
 export default {
   props: ['project', 'currentSessionFile'],
   data() { return { sessions: [], loading: false } },
@@ -136,12 +137,7 @@ export default {
       }
     },
     sourceLabel(src) {
-      const labels = {
-        claudecode: 'Claude',
-        gcopilot: 'Copilot',
-        codex: 'Codex'
-      }
-      return labels[src] || src
+      return SOURCE_LABELS[src] || src
     }
   },
   computed: {

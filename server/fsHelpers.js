@@ -864,14 +864,13 @@ async function getCodexSessions(projectId) {
     const sessionFiles = await listCodexSessionFiles()
 
     for (const sessionFile of sessionFiles) {
-      const projectPath = await extractCodexProjectPath(sessionFile)
-      if (!projectPath) continue
+      const session = await parseCodexSession(sessionFile)
+      if (!session || !session.projectPath) continue
 
-      const sessionProjectId = pathToClaudeDirName(projectPath)
+      const sessionProjectId = pathToClaudeDirName(session.projectPath)
       if (sessionProjectId !== projectId) continue
 
-      const session = await parseCodexSession(sessionFile)
-      if (session && session.messageCount >= 3) {
+      if (session.messageCount >= 3) {
         sessions.push(session)
       }
     }
@@ -1514,18 +1513,18 @@ function normalizeCodexEvents(msgs) {
       const patchEvent = patchApplyEvents.get(msg.payload.call_id)
       let resultContent = ''
 
-      if (customOutput?.payload?.output) {
-        resultContent = extractCodexToolOutput(customOutput.payload.output)
-      }
       if (patchEvent?.payload) {
         const p = patchEvent.payload
-        resultContent = p.success
+        const parts = [p.success
           ? `Patch applied: ${p.stdout || ''}`.trim()
-          : `Patch failed: ${p.stderr || p.stdout || ''}`.trim()
+          : `Patch failed: ${p.stderr || p.stdout || ''}`.trim()]
         if (p.changes && typeof p.changes === 'object') {
           const files = Object.keys(p.changes)
-          if (files.length) resultContent += (resultContent ? '\n' : '') + `Files: ${files.join(', ')}`
+          if (files.length) parts.push(`Files: ${files.join(', ')}`)
         }
+        resultContent = parts.filter(Boolean).join('\n')
+      } else if (customOutput?.payload?.output) {
+        resultContent = extractCodexToolOutput(customOutput.payload.output)
       }
 
       if (resultContent) {

@@ -350,4 +350,220 @@ describe('mapSessionMessages', () => {
     expect(brokenToolUse).toBeUndefined()
     expect(entries.some(e => JSON.stringify(e.content).includes('done'))).toBe(true)
   })
+
+  it('maps Codex reasoning blocks to thinking placeholders', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'reasoning-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'think about it' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'reasoning',
+          summary: ['step 1', 'step 2'],
+          encrypted_content: 'abc123'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'answer' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const thinking = entries.find(e =>
+      Array.isArray(e.content) && e.content.some(c => c.type === 'thinking')
+    )
+    expect(thinking).toBeDefined()
+    expect(JSON.stringify(thinking.content)).toContain('step 1\\nstep 2')
+  })
+
+  it('maps Codex custom_tool_call with patch_apply_end result', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'custom-tool-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'apply the patch' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          call_id: 'call_patch_1',
+          name: 'apply_patch',
+          input: '*** Begin Patch\n*** Update File: foo.js\n@@\n-old\n+new'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'patch_apply_end',
+          call_id: 'call_patch_1',
+          stdout: 'Success. Updated the following files:\nM foo.js',
+          stderr: '',
+          success: true,
+          changes: { 'foo.js': { type: 'update' } }
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const toolEntry = entries.find(e =>
+      Array.isArray(e.content) && e.content.some(c => c.type === 'tool_use')
+    )
+    expect(toolEntry).toBeDefined()
+    expect(JSON.stringify(toolEntry.content)).toContain('"name":"ApplyPatch"')
+    expect(JSON.stringify(toolEntry.content)).toContain('Patch applied')
+    expect(JSON.stringify(toolEntry.content)).toContain('foo.js')
+  })
+
+  it('maps Codex custom_tool_call with custom_tool_call_output when no patch event', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'custom-output-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'use mcp tool' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          call_id: 'call_mcp_1',
+          name: 'my_mcp_tool',
+          input: { query: 'something' }
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call_mcp_1',
+          output: 'mcp result here'
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const toolEntry = entries.find(e =>
+      Array.isArray(e.content) && e.content.some(c => c.type === 'tool_use')
+    )
+    expect(toolEntry).toBeDefined()
+    expect(JSON.stringify(toolEntry.content)).toContain('"name":"my_mcp_tool"')
+    expect(JSON.stringify(toolEntry.content)).toContain('mcp result here')
+  })
+
+  it('maps Codex agent_message and collab events as assistant entries', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'agent-collab-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'spawn an agent' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'collab_agent_spawn_end',
+          call_id: 'call_spawn_1',
+          new_agent_nickname: 'Worker1',
+          new_agent_role: 'worker',
+          prompt: 'do the thing'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'agent_message',
+          message: 'I am thinking about the problem.',
+          phase: 'commentary'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:04.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'collab_waiting_end',
+          call_id: 'call_spawn_1',
+          statuses: {}
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:05.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'collab_close_end',
+          call_id: 'call_spawn_1',
+          receiver_agent_nickname: 'Worker1'
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const allText = JSON.stringify(entries)
+    expect(allText).toContain('Spawned agent Worker1')
+    expect(allText).toContain('I am thinking about the problem')
+    expect(allText).toContain('Waiting on agents')
+    expect(allText).toContain('Closed agent Worker1')
+  })
 })

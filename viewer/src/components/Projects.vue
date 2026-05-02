@@ -21,6 +21,8 @@
 </template>
 
 <script>
+import { SOURCE_LABELS } from '../constants.js'
+
 export default {
   props: { selected: { type: Object, default: null } },
   data() {
@@ -60,12 +62,7 @@ export default {
       return p.name
     },
     sourceLabel(src) {
-      const labels = {
-        claudecode: 'Claude',
-        gcopilot: 'Copilot',
-        codex: 'Codex'
-      }
-      return labels[src] || src
+      return SOURCE_LABELS[src] || src
     },
     formatSessionCount(p) {
       // Handle new format: { claudecode: 5, gcopilot: 10 }
