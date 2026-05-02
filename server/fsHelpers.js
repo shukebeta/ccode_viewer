@@ -208,12 +208,14 @@ function sanitizeCodexUserContent(content) {
 
   if (typeof content.text === 'string') {
     const cleaned = stripCodexUserBoilerplate(content.text)
-    return cleaned ? { ...content, text: cleaned } : null
+    if (!cleaned) return null
+    return { ...content, type: 'text', text: cleaned }
   }
 
   if (typeof content.content === 'string') {
     const cleaned = stripCodexUserBoilerplate(content.content)
-    return cleaned ? { ...content, content: cleaned } : null
+    if (!cleaned) return null
+    return { ...content, type: 'text', content: cleaned }
   }
 
   return content
@@ -1364,6 +1366,8 @@ function getCodexToolResult(callId, functionOutputs, execCommandEvents) {
 function normalizeCodexEvents(msgs) {
   const functionOutputs = new Map()
   const execCommandEvents = new Map()
+  const customToolOutputs = new Map()
+  const patchApplyEvents = new Map()
 
   for (const msg of msgs) {
     if (msg.type === 'response_item' && msg.payload?.type === 'function_call_output' && msg.payload.call_id) {
@@ -1372,6 +1376,14 @@ function normalizeCodexEvents(msgs) {
 
     if (msg.type === 'event_msg' && msg.payload?.type === 'exec_command_end' && msg.payload.call_id) {
       execCommandEvents.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'response_item' && msg.payload?.type === 'custom_tool_call_output' && msg.payload.call_id) {
+      customToolOutputs.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'event_msg' && msg.payload?.type === 'patch_apply_end' && msg.payload.call_id) {
+      patchApplyEvents.set(msg.payload.call_id, msg)
     }
   }
 
@@ -1455,6 +1467,122 @@ function normalizeCodexEvents(msgs) {
         raw: msg,
         index
       })
+      continue
+    }
+
+    // Reasoning / thinking blocks
+    if (msg.type === 'response_item' && msg.payload?.type === 'reasoning') {
+      assistants.push({
+        id: `reasoning_${index}`,
+        content: [{ type: 'thinking', thinking: msg.payload.summary?.join('\n') || 'thinking...' }],
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Custom tool calls (MCP tools)
+    if (msg.type === 'response_item' && msg.payload?.type === 'custom_tool_call' && msg.payload.call_id) {
+      const toolName = msg.payload.name || 'unknown'
+      const toolInput = msg.payload.input || ''
+      const content = []
+
+      const normalizedTool = normalizeCodexToolCall(toolName, typeof toolInput === 'string' ? parseCodexArguments(toolInput) : toolInput)
+
+      if (normalizedTool.name) {
+        content.push({
+          type: 'tool_use',
+          id: msg.payload.call_id,
+          name: normalizedTool.name,
+          input: normalizedTool.input,
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+        })
+      } else if (normalizedTool.text) {
+        content.push({ type: 'text', text: normalizedTool.text })
+      } else {
+        content.push({
+          type: 'tool_use',
+          id: msg.payload.call_id,
+          name: toolName,
+          input: typeof toolInput === 'string' ? { raw: toolInput } : (toolInput || {})
+        })
+      }
+
+      // Attach result from custom_tool_call_output or patch_apply_end
+      const customOutput = customToolOutputs.get(msg.payload.call_id)
+      const patchEvent = patchApplyEvents.get(msg.payload.call_id)
+      let resultContent = ''
+
+      if (customOutput?.payload?.output) {
+        resultContent = extractCodexToolOutput(customOutput.payload.output)
+      }
+      if (patchEvent?.payload) {
+        const p = patchEvent.payload
+        resultContent = p.success
+          ? `Patch applied: ${p.stdout || ''}`.trim()
+          : `Patch failed: ${p.stderr || p.stdout || ''}`.trim()
+        if (p.changes && typeof p.changes === 'object') {
+          const files = Object.keys(p.changes)
+          if (files.length) resultContent += (resultContent ? '\n' : '') + `Files: ${files.join(', ')}`
+        }
+      }
+
+      if (resultContent) {
+        content.push({
+          type: 'tool_result',
+          tool_use_id: msg.payload.call_id,
+          content: resultContent
+        })
+      }
+
+      assistants.push({
+        id: msg.payload.call_id,
+        content,
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Agent messages (commentary from spawned agents)
+    if (msg.type === 'event_msg' && msg.payload?.type === 'agent_message' && msg.payload.message) {
+      assistants.push({
+        id: `agent_msg_${index}`,
+        content: [{ type: 'text', text: msg.payload.message }],
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Collab events — render as status text
+    if (msg.type === 'event_msg') {
+      const et = msg.payload?.type
+      let statusText = ''
+
+      if (et === 'collab_agent_spawn_end') {
+        statusText = `Spawned agent ${msg.payload.new_agent_nickname || ''} (${msg.payload.new_agent_role || 'worker'})`
+      } else if (et === 'collab_agent_interaction_end') {
+        statusText = `Agent interaction: ${msg.payload.status || 'completed'}`
+      } else if (et === 'collab_waiting_end') {
+        statusText = 'Waiting on agents...'
+      } else if (et === 'collab_close_end') {
+        statusText = `Closed agent ${msg.payload.receiver_agent_nickname || ''}`
+      }
+
+      if (statusText) {
+        assistants.push({
+          id: `event_${index}`,
+          content: [{ type: 'text', text: statusText }],
+          timestamp: msg.timestamp,
+          raw: msg,
+          index
+        })
+      }
+      continue
     }
   }
 
