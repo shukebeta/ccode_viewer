@@ -546,12 +546,57 @@ describe('mapSessionMessages', () => {
     expect(JSON.stringify(toolEntry.content)).toContain('mcp result here')
   })
 
-  it('maps Codex agent_message and collab events as assistant entries', async () => {
+  it('skips Codex agent_message events (duplicates of response_item assistant)', async () => {
     const { file } = writeTempCodexSession([
       {
         timestamp: '2026-05-02T00:00:00.000Z',
         type: 'session_meta',
-        payload: { id: 'agent-collab-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+        payload: { id: 'agent-dup-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'hello' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'agent_message',
+          message: 'duplicate content',
+          phase: 'commentary'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'duplicate content' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    // Should only have the response_item version, not the agent_message version
+    const matching = entries.filter(e => JSON.stringify(e.content).includes('duplicate content'))
+    expect(matching).toHaveLength(1)
+  })
+
+  it('maps Codex collab events as status text', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'collab-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
       },
       {
         timestamp: '2026-05-02T00:00:01.000Z',
@@ -577,22 +622,13 @@ describe('mapSessionMessages', () => {
         timestamp: '2026-05-02T00:00:03.000Z',
         type: 'event_msg',
         payload: {
-          type: 'agent_message',
-          message: 'I am thinking about the problem.',
-          phase: 'commentary'
-        }
-      },
-      {
-        timestamp: '2026-05-02T00:00:04.000Z',
-        type: 'event_msg',
-        payload: {
           type: 'collab_waiting_end',
           call_id: 'call_spawn_1',
           statuses: {}
         }
       },
       {
-        timestamp: '2026-05-02T00:00:05.000Z',
+        timestamp: '2026-05-02T00:00:04.000Z',
         type: 'event_msg',
         payload: {
           type: 'collab_close_end',
@@ -608,7 +644,6 @@ describe('mapSessionMessages', () => {
 
     const allText = JSON.stringify(entries)
     expect(allText).toContain('Spawned agent Worker1')
-    expect(allText).toContain('I am thinking about the problem')
     expect(allText).toContain('Waiting on agents')
     expect(allText).toContain('Closed agent Worker1')
   })

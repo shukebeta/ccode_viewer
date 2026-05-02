@@ -1546,15 +1546,8 @@ function normalizeCodexEvents(msgs) {
       continue
     }
 
-    // Agent messages (commentary from spawned agents)
-    if (msg.type === 'event_msg' && msg.payload?.type === 'agent_message' && msg.payload.message) {
-      assistants.push({
-        id: `agent_msg_${index}`,
-        content: [{ type: 'text', text: msg.payload.message }],
-        timestamp: msg.timestamp,
-        raw: msg,
-        index
-      })
+    // Agent messages are duplicates of response_item/message/assistant — skip
+    if (msg.type === 'event_msg' && msg.payload?.type === 'agent_message') {
       continue
     }
 
