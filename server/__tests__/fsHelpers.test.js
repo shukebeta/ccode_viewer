@@ -3,7 +3,8 @@ const {
   resolveSessionFilePath,
   extractCopilotProjectPath,
   resolveCopilotProjectPath,
-  extractCodexProjectPath
+  extractCodexProjectPath,
+  shouldHideRawSessionEvent
 } = require('../fsHelpers')
 
 // We'll create helper to write a temporary jsonl file for test purposes
@@ -122,6 +123,21 @@ describe('mapSessionMessages', () => {
     const u2 = out.users.find(u => u.preview.includes('second'))
     expect(out.mapping[u1.id].some(a => (typeof a.content === 'string' ? a.content : JSON.stringify(a.content)).includes('reply to first'))).toBeTruthy()
     expect(out.mapping[u2.id].some(a => (typeof a.content === 'string' ? a.content : JSON.stringify(a.content)).includes('reply to second'))).toBeTruthy()
+  })
+
+  it('drops protocol noise events from generic session mappings', async () => {
+    const lines = [
+      { type: 'user', uuid: 'u1', timestamp: '2025-09-20T00:00:00.000Z', message: { content: 'first' } },
+      { type: 'assistant.turn_start', timestamp: '2025-09-20T00:00:00.100Z', data: { turnId: 'turn_1' } },
+      { type: 'tool.execution_start', timestamp: '2025-09-20T00:00:00.200Z', data: { toolName: 'view' } },
+      { type: 'assistant.message', uuid: 'a1', timestamp: '2025-09-20T00:00:01.000Z', data: { content: 'reply to first' } }
+    ]
+
+    const out = await mapSessionMessages(writeTempJsonl(lines))
+    const userId = out.users[0].id
+
+    expect(out.mapping[userId]).toHaveLength(1)
+    expect(JSON.stringify(out.mapping[userId][0].content)).toContain('reply to first')
   })
 
   it('removes injected skill payload text from user previews while preserving raw content', async () => {
@@ -678,8 +694,23 @@ describe('mapSessionMessages', () => {
     const entries = out.mapping[userId]
 
     const allText = JSON.stringify(entries)
+    expect(allText).toContain('"type":"status"')
     expect(allText).toContain('Spawned agent Worker1')
     expect(allText).toContain('Waiting on agents')
     expect(allText).toContain('Closed agent Worker1')
+  })
+})
+
+describe('shouldHideRawSessionEvent', () => {
+  it('classifies protocol lifecycle events as hidden noise', () => {
+    expect(shouldHideRawSessionEvent({ type: 'assistant.turn_start' })).toBe(true)
+    expect(shouldHideRawSessionEvent({ type: 'tool.execution_complete' })).toBe(true)
+    expect(shouldHideRawSessionEvent({ type: 'hook.start' })).toBe(true)
+  })
+
+  it('keeps conversational events visible', () => {
+    expect(shouldHideRawSessionEvent({ type: 'assistant.message' })).toBe(false)
+    expect(shouldHideRawSessionEvent({ type: 'tool_result' })).toBe(false)
+    expect(shouldHideRawSessionEvent({ type: 'user' })).toBe(false)
   })
 })

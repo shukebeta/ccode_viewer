@@ -1023,7 +1023,9 @@ module.exports = {
   resolveSessionFilePath,
   extractCopilotProjectPath,
   resolveCopilotProjectPath,
-  extractCodexProjectPath
+  extractCodexProjectPath,
+  normalizeCodexEvent,
+  shouldHideRawSessionEvent
 }
 
 function mapCopilotToolName(name) {
@@ -1361,6 +1363,53 @@ function getCodexToolResult(callId, functionOutputs, execCommandEvents) {
   }
 }
 
+const HIDDEN_RAW_SESSION_EVENT_TYPES = new Set([
+  'assistant.turn_start',
+  'assistant.turn_end',
+  'tool.execution_start',
+  'tool.execution_complete',
+  'hook.start',
+  'hook.end',
+  'session.compaction_start',
+  'session.compaction_end',
+  'session.start',
+  'session.info',
+  'session.model_change',
+  'session.plan_changed',
+  'system.message'
+])
+
+function shouldHideRawSessionEvent(msg) {
+  if (!msg || typeof msg !== 'object') return false
+  return typeof msg.type === 'string' && HIDDEN_RAW_SESSION_EVENT_TYPES.has(msg.type)
+}
+
+function createStatusBlock(text, kind = 'runtime') {
+  const value = typeof text === 'string' ? text.trim() : ''
+  if (!value) return null
+  return { type: 'status', text: value, kind }
+}
+
+function buildCodexLiveToolResult(callId, resultContent, timestamp, raw) {
+  const text = typeof resultContent === 'string'
+    ? resultContent.trim()
+    : (resultContent == null ? '' : String(resultContent).trim())
+
+  if (!callId || !text) return null
+
+  return {
+    type: 'tool_result',
+    parentUuid: callId,
+    content: {
+      type: 'tool_result',
+      tool_use_id: callId,
+      content: text
+    },
+    timestamp,
+    raw
+  }
+}
+
 function normalizeCodexEvents(msgs) {
   const functionOutputs = new Map()
   const execCommandEvents = new Map()
@@ -1585,9 +1634,11 @@ function normalizeCodexEvents(msgs) {
       }
 
       if (statusText) {
+        const statusBlock = createStatusBlock(statusText)
+        if (!statusBlock) continue
         assistants.push({
           id: `event_${index}`,
-          content: [{ type: 'text', text: statusText }],
+          content: [statusBlock],
           timestamp: msg.timestamp,
           raw: msg,
           index
@@ -1652,6 +1703,117 @@ function normalizeCodexEvents(msgs) {
   }
 }
 
+/**
+ * Normalize a single Codex event into a Claude Code–style message
+ * for SSE live updates. Returns null for non-conversational events.
+ */
+function normalizeCodexEvent(msg) {
+  if (!msg || typeof msg !== 'object') return null
+  if (msg.type === 'session_meta') return null
+
+  if (msg.type === 'response_item') {
+    const p = msg.payload || {}
+
+    if (p.type === 'message') {
+      if (p.role === 'user') {
+        const cleanedContent = sanitizeCodexUserContent(p.content)
+        const preview = getUserPreviewText(cleanedContent)
+        if (!preview) return null
+        return { type: 'user', content: cleanedContent, timestamp: msg.timestamp, raw: msg }
+      }
+      if (p.role === 'assistant') {
+        const content = normalizeCodexAssistantContent(p.content)
+        const text = extractPlainText(content).trim()
+        if (!text) return null
+        return { type: 'assistant', content, timestamp: msg.timestamp, raw: msg }
+      }
+      return null // developer or unknown role
+    }
+
+    if (p.type === 'function_call' || p.type === 'custom_tool_call') {
+      const toolName = p.name || 'unknown'
+      const args = typeof p.arguments === 'string' ? parseCodexArguments(p.arguments) : (p.input || {})
+      const normalizedTool = normalizeCodexToolCall(toolName, args)
+      const content = []
+
+      if (normalizedTool?.name) {
+        content.push({
+          type: 'tool_use',
+          id: p.call_id || `tc_${Date.now()}`,
+          name: normalizedTool.name,
+          input: normalizedTool.input,
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+        })
+      } else if (normalizedTool?.text) {
+        content.push({ type: 'text', text: normalizedTool.text })
+      } else {
+        content.push({
+          type: 'tool_use',
+          id: p.call_id || `tc_${Date.now()}`,
+          name: toolName,
+          input: args
+        })
+      }
+
+      return { type: 'assistant', content, timestamp: msg.timestamp, raw: msg }
+    }
+
+    if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output') {
+      const resultContent = extractCodexToolOutput(p.output)
+      return buildCodexLiveToolResult(p.call_id, resultContent, msg.timestamp, msg)
+    }
+
+    if (p.type === 'reasoning') {
+      const summary = Array.isArray(p.summary) ? p.summary.filter(Boolean).join('\n').trim() : ''
+      if (!summary) return null
+      return { type: 'assistant', content: [{ type: 'thinking', thinking: summary }], timestamp: msg.timestamp, raw: msg }
+    }
+
+    return null // function_call_output, custom_tool_call_output, etc.
+  }
+
+  if (msg.type === 'event_msg') {
+    const p = msg.payload || {}
+
+    if (p.type === 'exec_command_end') {
+      return buildCodexLiveToolResult(p.call_id, p.aggregated_output, msg.timestamp, msg)
+    }
+
+    if (p.type === 'patch_apply_end') {
+      const parts = [p.success
+        ? `Patch applied: ${p.stdout || ''}`.trim()
+        : `Patch failed: ${p.stderr || p.stdout || ''}`.trim()]
+      if (p.changes && typeof p.changes === 'object') {
+        const files = Object.keys(p.changes)
+        if (files.length) parts.push(`Files: ${files.join(', ')}`)
+      }
+      return buildCodexLiveToolResult(p.call_id, parts.filter(Boolean).join('\n'), msg.timestamp, msg)
+    }
+
+    if (p.type === 'agent_message') {
+      const text = typeof p.message === 'string' ? p.message.trim() : ''
+      if (!text) return null
+      return { type: 'assistant', content: [{ type: 'text', text }], timestamp: msg.timestamp, raw: msg }
+    }
+
+    const collabStatus = {
+      collab_agent_spawn_end: () => `Spawned agent ${p.new_agent_nickname || ''} (${p.new_agent_role || 'worker'})`,
+      collab_agent_interaction_end: () => `Agent interaction: ${p.status || 'completed'}`,
+      collab_waiting_end: () => 'Waiting on agents...',
+      collab_close_end: () => `Closed agent ${p.receiver_agent_nickname || ''}`
+    }
+    if (collabStatus[p.type]) {
+      const statusBlock = createStatusBlock(collabStatus[p.type]())
+      if (!statusBlock) return null
+      return { type: 'assistant', content: [statusBlock], timestamp: msg.timestamp, raw: msg }
+    }
+
+    return null
+  }
+
+  return null
+}
+
 async function mapSessionMessages(filePath) {
   const msgs = await readSessionFile(filePath)
 
@@ -1670,6 +1832,18 @@ async function mapSessionMessages(filePath) {
 
   // Normalize messages with canonical id, type, timestamp, and content
   const norm = msgs.map((m, i) => {
+  if (shouldHideRawSessionEvent(m)) {
+    return {
+      raw: m,
+      rawType: m.type,
+      id: m.uuid || (m.message && m.message.id) || m.id || `i_${i}`,
+      type: 'hidden',
+      timestamp: m.timestamp || (m.message && m.message.timestamp) || null,
+      content: null,
+      index: i,
+      parentUuid: m.parentUuid || m.parentId
+    }
+  }
   const id = m.uuid || (m.message && m.message.id) || m.id || `i_${i}`
   const rawType = m.type
   let type = rawType
@@ -1677,8 +1851,7 @@ async function mapSessionMessages(filePath) {
 
     // Normalize Copilot event types: user.message -> user, assistant.message -> assistant
     if (type === 'user.message') type = 'user'
-    if (type === 'assistant.message' || type === 'assistant.turn_start' || type === 'assistant.turn_end') type = 'assistant'
-    if (type === 'tool.execution_start' || type === 'tool.execution_complete') type = 'assistant'
+    if (type === 'assistant.message') type = 'assistant'
     if (type === 'system.message' || type === 'session.start' || type === 'session.model_change' || type === 'session.info' || type === 'session.plan_changed') type = 'system'
 
     // Normalize tool messages to assistant (tool_use, tool_result, etc.)
