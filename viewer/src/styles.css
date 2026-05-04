@@ -29,6 +29,11 @@
   color: var(--tool-copilot);
 }
 
+.source-badge.codex {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--accent);
+}
+
 /* Session list */
 .session-row {
   display: flex;
@@ -201,6 +206,7 @@
   .copilot-tool-label,
   .plan-mode-indicator,
   .task-tool-label,
+  .status-block,
   .unknown-block,
   .thinking-block,
   .thinking-block-placeholder,
@@ -415,6 +421,34 @@
   border: none;
   border-left: 2px dashed var(--border-strong);
   font-style: italic;
+}
+
+.status-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  padding: 1px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.status-block-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: rgba(120, 113, 108, 0.45);
+}
+
+.status-block-text {
+  opacity: 0.82;
+}
+
+.status-block-runtime .status-block-dot {
+  background: rgba(59, 130, 246, 0.42);
 }
 
 .tool-result-error { border-left: 2px solid var(--danger); }

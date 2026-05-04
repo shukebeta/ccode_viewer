@@ -1,14 +1,28 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
-const { getUserPreviewText } = require('../shared/messageContent')
+const { extractPlainText, getUserPreviewText } = require('../shared/messageContent')
 
 const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
 const COPILOT_SESSION_PATH = path.join(os.homedir(), '.copilot', 'session-state')
+const CODEX_SESSIONS_PATH = path.join(os.homedir(), '.codex', 'sessions')
+const CODEX_ENVIRONMENT_CONTEXT_RE = /<environment_context>[\s\S]*?<\/environment_context>\s*/gi
+
+function getClaudeProjectsPath() {
+  return process.env.CLAUDE_PROJECTS_PATH || CLAUDE_PROJECTS_PATH
+}
+
+function getCopilotSessionPath() {
+  return process.env.COPILOT_SESSION_PATH || COPILOT_SESSION_PATH
+}
+
+function getCodexSessionsPath() {
+  return process.env.CODEX_SESSIONS_PATH || CODEX_SESSIONS_PATH
+}
 
 // Local copy of resolveProjectPath (ported from electron/pathResolver.ts)
 const { sep: PATH_SEP } = path
-function resolveProjectPath(projectName, pathImpl = path) {
+function resolveProjectPath(projectName, pathImpl = path, existsImpl = fsExistsSync) {
   const pathCache = resolveProjectPath._cache || (resolveProjectPath._cache = new Map())
   
   // Check cache
@@ -79,11 +93,11 @@ function resolveProjectPath(projectName, pathImpl = path) {
       const resolvedCandidatePathWithUnderscore = pathImpl.resolve(drivePrefix + candidatePathWithUnderscore)
       const resolvedCandidatePathWithDot = pathImpl.resolve(drivePrefix + candidatePathWithDot)
 
-      if (fsExistsSync(resolvedCandidatePath)) {
+      if (existsImpl(resolvedCandidatePath)) {
         currentPath = candidatePath
-      } else if (fsExistsSync(resolvedCandidatePathWithUnderscore)) {
+      } else if (existsImpl(resolvedCandidatePathWithUnderscore)) {
         currentPath = candidatePathWithUnderscore
-      } else if (fsExistsSync(resolvedCandidatePathWithDot)) {
+      } else if (existsImpl(resolvedCandidatePathWithDot)) {
         currentPath = candidatePathWithDot
       } else {
         continue
@@ -162,6 +176,152 @@ function parseSimpleYaml(text) {
     if (match) result[match[1]] = match[2].trim()
   }
   return result
+}
+
+function parseJsonLine(line) {
+  try {
+    return JSON.parse(line)
+  } catch (e) {
+    return null
+  }
+}
+
+function stripCodexUserBoilerplate(text) {
+  if (typeof text !== 'string') return ''
+  return text.replace(CODEX_ENVIRONMENT_CONTEXT_RE, '').trim()
+}
+
+function sanitizeCodexUserContent(content) {
+  if (Array.isArray(content)) {
+    const cleaned = content
+      .map(item => sanitizeCodexUserContent(item))
+      .filter(item => item != null)
+    return cleaned.length > 0 ? cleaned : null
+  }
+
+  if (typeof content === 'string') {
+    const cleaned = stripCodexUserBoilerplate(content)
+    return cleaned || null
+  }
+
+  if (!content || typeof content !== 'object') return content
+
+  if (typeof content.text === 'string') {
+    const cleaned = stripCodexUserBoilerplate(content.text)
+    if (!cleaned) return null
+    return { ...content, type: 'text', text: cleaned }
+  }
+
+  if (typeof content.content === 'string') {
+    const cleaned = stripCodexUserBoilerplate(content.content)
+    if (!cleaned) return null
+    return { ...content, type: 'text', content: cleaned }
+  }
+
+  return content
+}
+
+function parseCodexArguments(argumentsValue) {
+  if (typeof argumentsValue !== 'string') {
+    return argumentsValue && typeof argumentsValue === 'object' ? argumentsValue : {}
+  }
+
+  try {
+    return JSON.parse(argumentsValue)
+  } catch (e) {
+    return argumentsValue
+  }
+}
+
+function extractCodexToolOutput(outputValue) {
+  if (typeof outputValue !== 'string') return outputValue || ''
+  const match = outputValue.match(/\nOutput:\n([\s\S]*)$/)
+  return (match ? match[1] : outputValue).trim()
+}
+
+function normalizeCodexAssistantContent(content) {
+  const blocks = Array.isArray(content) ? content : [content]
+  const out = []
+
+  for (const block of blocks) {
+    if (typeof block === 'string' && block.trim()) {
+      out.push({ type: 'text', text: block })
+      continue
+    }
+
+    if (!block || typeof block !== 'object') continue
+
+    if ((block.type === 'output_text' || block.type === 'text') && typeof block.text === 'string' && block.text.trim()) {
+      out.push({ type: 'text', text: block.text })
+      continue
+    }
+
+    if (typeof block.content === 'string' && block.content.trim()) {
+      out.push({ type: 'text', text: block.content })
+    }
+  }
+
+  return out
+}
+
+function summarizeCodexItems(items) {
+  if (!Array.isArray(items)) return ''
+
+  return items
+    .map(item => {
+      if (!item || typeof item !== 'object') return ''
+      if (typeof item.text === 'string') return item.text.trim()
+      if (typeof item.name === 'string') return item.name.trim()
+      if (typeof item.path === 'string') return item.path.trim()
+      if (typeof item.image_url === 'string') return item.image_url.trim()
+      return ''
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
+function formatCodexPlanUpdate(args) {
+  if (!args || typeof args !== 'object') return ''
+
+  const parts = []
+  if (typeof args.explanation === 'string' && args.explanation.trim()) {
+    parts.push(args.explanation.trim())
+  }
+
+  if (Array.isArray(args.plan) && args.plan.length > 0) {
+    const planLines = args.plan
+      .filter(item => item && typeof item.step === 'string' && item.step.trim())
+      .map(item => `- [${item.status || 'pending'}] ${item.step.trim()}`)
+    if (planLines.length > 0) parts.push(planLines.join('\n'))
+  }
+
+  return parts.join('\n\n').trim()
+}
+
+async function listCodexSessionFiles(rootDir) {
+  const files = []
+  const startDir = rootDir || getCodexSessionsPath()
+
+  async function walk(dir) {
+    let entries = []
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true })
+    } catch (e) {
+      return
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        await walk(fullPath)
+      } else if (entry.isFile() && /^rollout-.*\.jsonl$/i.test(entry.name)) {
+        files.push(fullPath)
+      }
+    }
+  }
+
+  await walk(startDir)
+  return files
 }
 
 /**
@@ -268,6 +428,58 @@ async function resolveCopilotProjectPath(sessionPath) {
   return null
 }
 
+async function extractCodexProjectPath(sessionFilePath) {
+  try {
+    const content = await fs.readFile(sessionFilePath, 'utf8')
+    const lines = content.trim().split('\n')
+
+    for (const line of lines) {
+      const data = parseJsonLine(line)
+      if (data?.type === 'session_meta' && typeof data.payload?.cwd === 'string' && data.payload.cwd.trim()) {
+        return data.payload.cwd
+      }
+    }
+  } catch (e) {
+    return null
+  }
+
+  return null
+}
+
+async function getCodexProjects() {
+  const projectMap = new Map()
+
+  try {
+    const sessionFiles = await listCodexSessionFiles()
+
+    for (const sessionFile of sessionFiles) {
+      const projectPath = await extractCodexProjectPath(sessionFile)
+      if (!projectPath) continue
+
+      const stats = await fs.stat(sessionFile)
+      const projectId = pathToClaudeDirName(projectPath)
+
+      if (!projectMap.has(projectId)) {
+        projectMap.set(projectId, {
+          projectPath,
+          sessions: [],
+          lastUpdated: stats.mtime
+        })
+      }
+
+      const project = projectMap.get(projectId)
+      project.sessions.push(sessionFile)
+      if (stats.mtime > project.lastUpdated) {
+        project.lastUpdated = stats.mtime
+      }
+    }
+  } catch (e) {
+    // Codex directory doesn't exist or can't be read
+  }
+
+  return projectMap
+}
+
 /**
  * Get all projects from Copilot sessions (new directory-based format)
  * Returns a map of projectId -> { sessions: [...], lastUpdated: Date }
@@ -276,13 +488,13 @@ async function getCopilotProjects() {
   const projectMap = new Map()
 
   try {
-    const entries = await fs.readdir(COPILOT_SESSION_PATH, { withFileTypes: true })
+    const entries = await fs.readdir(getCopilotSessionPath(), { withFileTypes: true })
 
     for (const entry of entries) {
       const isLegacyFile = entry.isFile() && path.extname(entry.name).toLowerCase() === '.jsonl'
       if (!entry.isDirectory() && !isLegacyFile) continue
 
-      const sessionPath = path.join(COPILOT_SESSION_PATH, entry.name)
+      const sessionPath = path.join(getCopilotSessionPath(), entry.name)
       const projectPath = await resolveCopilotProjectPath(sessionPath)
       if (!projectPath) continue
 
@@ -323,10 +535,10 @@ async function getProjects() {
 
   // 1. Get Claude Code projects
   try {
-    const entries = await fs.readdir(CLAUDE_PROJECTS_PATH, { withFileTypes: true })
+    const entries = await fs.readdir(getClaudeProjectsPath(), { withFileTypes: true })
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        const projectPath = path.join(CLAUDE_PROJECTS_PATH, entry.name)
+        const projectPath = path.join(getClaudeProjectsPath(), entry.name)
         const sessions = await fs.readdir(projectPath)
         const sessionFiles = sessions.filter(f => f.endsWith('.jsonl'))
 
@@ -398,7 +610,42 @@ async function getProjects() {
     // Copilot integration failed - continue with Claude projects only
   }
 
-  // 3. Convert map to array and sort by lastUpdated
+  // 3. Get Codex projects and merge
+  try {
+    const codexProjects = await getCodexProjects()
+
+    for (const [projectId, codexData] of codexProjects) {
+      if (projectMap.has(projectId)) {
+        const existing = projectMap.get(projectId)
+        existing.sources.push('codex')
+        existing.sessionCount.codex = codexData.sessions.length
+        if (codexData.projectPath) {
+          existing.name = codexData.projectPath
+          existing.path = codexData.projectPath
+        }
+
+        const existingDate = existing.lastUpdated ? new Date(existing.lastUpdated) : null
+        if (!existingDate || codexData.lastUpdated > existingDate) {
+          existing.lastUpdated = codexData.lastUpdated.toISOString()
+        }
+      } else {
+        projectMap.set(projectId, {
+          id: projectId,
+          name: codexData.projectPath,
+          path: codexData.projectPath,
+          sources: ['codex'],
+          sessionCount: {
+            codex: codexData.sessions.length
+          },
+          lastUpdated: codexData.lastUpdated.toISOString()
+        })
+      }
+    }
+  } catch (e) {
+    // Codex integration failed - continue with other projects only
+  }
+
+  // 4. Convert map to array and sort by lastUpdated
   const projects = Array.from(projectMap.values())
   projects.sort((a, b) => {
     const dateA = a.lastUpdated ? new Date(a.lastUpdated) : new Date(0)
@@ -505,13 +752,13 @@ async function getCopilotSessions(projectId) {
   const sessions = []
 
   try {
-    const entries = await fs.readdir(COPILOT_SESSION_PATH, { withFileTypes: true })
+    const entries = await fs.readdir(getCopilotSessionPath(), { withFileTypes: true })
 
     for (const entry of entries) {
       const isLegacyFile = entry.isFile() && path.extname(entry.name).toLowerCase() === '.jsonl'
       if (!entry.isDirectory() && !isLegacyFile) continue
 
-      const sessionPath = path.join(COPILOT_SESSION_PATH, entry.name)
+      const sessionPath = path.join(getCopilotSessionPath(), entry.name)
       const projectPath = await resolveCopilotProjectPath(sessionPath)
       if (!projectPath) continue
 
@@ -532,6 +779,107 @@ async function getCopilotSessions(projectId) {
   return sessions
 }
 
+async function parseCodexSession(sessionFilePath) {
+  try {
+    const stats = await fs.stat(sessionFilePath)
+    const content = await fs.readFile(sessionFilePath, 'utf8')
+    const lines = content.trim().split('\n')
+
+    let sessionId = path.basename(sessionFilePath, '.jsonl')
+    let projectPath = null
+    let startTime = null
+    let endTime = null
+    let messageCount = 0
+    const recentMessages = []
+
+    for (const line of lines) {
+      const data = parseJsonLine(line)
+      if (!data) continue
+
+      if (data.timestamp) {
+        const ts = new Date(data.timestamp)
+        if (!startTime || ts < startTime) startTime = ts
+        if (!endTime || ts > endTime) endTime = ts
+      }
+
+      if (data.type === 'session_meta') {
+        if (data.payload?.id) sessionId = data.payload.id
+        if (typeof data.payload?.cwd === 'string' && data.payload.cwd.trim()) projectPath = data.payload.cwd
+        if (data.payload?.timestamp) {
+          const ts = new Date(data.payload.timestamp)
+          if (!startTime || ts < startTime) startTime = ts
+        }
+        continue
+      }
+
+      if (data.type !== 'response_item' || data.payload?.type !== 'message') continue
+
+      const role = data.payload.role
+      if (role === 'developer') continue
+
+      if (role === 'user') {
+        const cleanedContent = sanitizeCodexUserContent(data.payload.content)
+        const preview = getUserPreviewText(cleanedContent)
+        if (!preview) continue
+        messageCount++
+        recentMessages.push(preview.substring(0, 150))
+        if (recentMessages.length > 3) recentMessages.shift()
+        continue
+      }
+
+      if (role === 'assistant') {
+        const assistantContent = normalizeCodexAssistantContent(data.payload.content)
+        const preview = extractPlainText(assistantContent)
+        if (!preview) continue
+        messageCount++
+        recentMessages.push(preview.substring(0, 150))
+        if (recentMessages.length > 3) recentMessages.shift()
+      }
+    }
+
+    return {
+      id: sessionId,
+      filePath: sessionFilePath,
+      startTime: startTime ? startTime.toISOString() : undefined,
+      endTime: endTime ? endTime.toISOString() : undefined,
+      mtime: stats.mtime,
+      messageCount,
+      totalCost: 0,
+      preview: recentMessages.join('\n').substring(0, 200),
+      isAgent: false,
+      source: 'codex',
+      branches: [],
+      projectPath
+    }
+  } catch (e) {
+    return null
+  }
+}
+
+async function getCodexSessions(projectId) {
+  const sessions = []
+
+  try {
+    const sessionFiles = await listCodexSessionFiles()
+
+    for (const sessionFile of sessionFiles) {
+      const session = await parseCodexSession(sessionFile)
+      if (!session || !session.projectPath) continue
+
+      const sessionProjectId = pathToClaudeDirName(session.projectPath)
+      if (sessionProjectId !== projectId) continue
+
+      if (session.messageCount >= 3) {
+        sessions.push(session)
+      }
+    }
+  } catch (e) {
+    // Codex directory doesn't exist or can't be read
+  }
+
+  return sessions
+}
+
 async function getSessions(projectName) {
   const sessions = []
 
@@ -539,7 +887,7 @@ async function getSessions(projectName) {
   try {
     const projectPath = path.isAbsolute(projectName)
       ? projectName
-      : path.join(CLAUDE_PROJECTS_PATH, projectName.replace(/\//g, '-'))
+      : path.join(getClaudeProjectsPath(), projectName.replace(/\//g, '-'))
 
     const files = await fs.readdir(projectPath)
 
@@ -634,7 +982,15 @@ async function getSessions(projectName) {
     // Copilot integration failed - continue with Claude sessions only
   }
 
-  // 3. Sort all sessions by modification time (newest first)
+  // 3. Get Codex sessions for this project
+  try {
+    const codexSessions = await getCodexSessions(projectName)
+    sessions.push(...codexSessions)
+  } catch (e) {
+    // Codex integration failed - continue with other sessions only
+  }
+
+  // 4. Sort all sessions by modification time (newest first)
   sessions.sort((a, b) => {
     if (!a.mtime || !b.mtime) return 0
     return b.mtime.getTime() - a.mtime.getTime()
@@ -663,9 +1019,13 @@ module.exports = {
   getSessions,
   readSessionFile,
   deleteSession,
+  resolveProjectPath,
   resolveSessionFilePath,
   extractCopilotProjectPath,
-  resolveCopilotProjectPath
+  resolveCopilotProjectPath,
+  extractCodexProjectPath,
+  normalizeCodexEvent,
+  shouldHideRawSessionEvent
 }
 
 function mapCopilotToolName(name) {
@@ -853,6 +1213,607 @@ function normalizeCopilotEvents(msgs) {
   return { users, mapping }
 }
 
+function normalizeCodexToolCall(name, args, execCommandEvent) {
+  if (name === 'exec_command') {
+    const parsed = Array.isArray(execCommandEvent?.payload?.parsed_cmd) ? execCommandEvent.payload.parsed_cmd[0] : null
+
+    if (parsed?.type === 'read') {
+      return {
+        name: 'Read',
+        input: { file_path: parsed.path || '' }
+      }
+    }
+
+    if (parsed?.type === 'search') {
+      return {
+        name: 'Grep',
+        input: {
+          pattern: parsed.query || '',
+          path: parsed.path || '',
+          glob: '',
+          output_mode: ''
+        }
+      }
+    }
+
+    if (parsed?.type === 'list_files') {
+      return {
+        name: 'Glob',
+        input: {
+          pattern: '*',
+          path: parsed.path || ''
+        }
+      }
+    }
+
+    return {
+      name: 'Bash',
+      input: {
+        command: args?.cmd || '',
+        description: args?.justification || ''
+      }
+    }
+  }
+
+  if (name === 'apply_patch') {
+    return {
+      name: 'ApplyPatch',
+      input: {
+        patch: typeof args === 'string' ? args : (args?.patch || '')
+      },
+      _copilotToolName: 'apply_patch'
+    }
+  }
+
+  if (name === 'write_stdin') {
+    return {
+      name: 'Bash',
+      input: {
+        command: `stdin ${args?.session_id || ''}`.trim(),
+        description: args?.chars || ''
+      }
+    }
+  }
+
+  if (name === 'request_user_input') {
+    return {
+      name: 'AskUserQuestion',
+      input: {
+        questions: Array.isArray(args?.questions) ? args.questions : []
+      }
+    }
+  }
+
+  if (name === 'spawn_agent') {
+    return {
+      name: 'Agent',
+      input: {
+        description: args?.message || '',
+        subagent_type: args?.agent_type || '',
+        prompt: args?.message || summarizeCodexItems(args?.items)
+      }
+    }
+  }
+
+  if (name === 'send_input') {
+    const prompt = args?.message || summarizeCodexItems(args?.items)
+    return {
+      text: `Sent input to agent ${args?.target || ''}${prompt ? `\n\n${prompt}` : ''}`.trim()
+    }
+  }
+
+  if (name === 'wait_agent') {
+    const targets = Array.isArray(args?.targets) ? args.targets.join(', ') : ''
+    return {
+      text: targets ? `Waiting on agents: ${targets}` : 'Waiting on agent output'
+    }
+  }
+
+  if (name === 'close_agent') {
+    return {
+      text: args?.target ? `Closed agent ${args.target}` : 'Closed agent'
+    }
+  }
+
+  if (name === 'update_plan') {
+    return {
+      text: formatCodexPlanUpdate(args)
+    }
+  }
+
+  if (name === 'view_image') {
+    return { name: 'Read', input: { file_path: args?.path || '' } }
+  }
+
+  if (name === 'read_mcp_resource') {
+    return { name: 'Read', input: { file_path: `${args?.server || ''}:${args?.uri || ''}` } }
+  }
+
+  if (name === 'list_mcp_resources' || name === 'list_mcp_resource_templates') {
+    return { name: 'Read', input: { file_path: args?.server || 'mcp://resources' } }
+  }
+
+  const mappedName = mapCopilotToolName(name)
+  if (mappedName !== name) {
+    return { name: mappedName, input: mapCopilotToolInput(name, args) }
+  }
+
+  return {
+    name,
+    input: typeof args === 'string' ? { raw: args } : (args || {})
+  }
+}
+
+function getCodexToolResult(callId, functionOutputs, execCommandEvents) {
+  const execCommandEvent = execCommandEvents.get(callId)
+  if (typeof execCommandEvent?.payload?.aggregated_output === 'string') {
+    return execCommandEvent.payload.aggregated_output
+  }
+
+  const functionOutput = functionOutputs.get(callId)
+  if (!functionOutput) return ''
+
+  const outputValue = extractCodexToolOutput(functionOutput.payload?.output)
+  if (typeof outputValue === 'string') return outputValue
+
+  try {
+    return JSON.stringify(outputValue)
+  } catch (e) {
+    return ''
+  }
+}
+
+const HIDDEN_RAW_SESSION_EVENT_TYPES = new Set([
+  'assistant.turn_start',
+  'assistant.turn_end',
+  'tool.execution_start',
+  'tool.execution_complete',
+  'hook.start',
+  'hook.end',
+  'session.compaction_start',
+  'session.compaction_end',
+  'session.start',
+  'session.info',
+  'session.model_change',
+  'session.plan_changed',
+  'system.message'
+])
+
+function shouldHideRawSessionEvent(msg) {
+  if (!msg || typeof msg !== 'object') return false
+  return typeof msg.type === 'string' && HIDDEN_RAW_SESSION_EVENT_TYPES.has(msg.type)
+}
+
+function createStatusBlock(text, kind = 'runtime') {
+  const value = typeof text === 'string' ? text.trim() : ''
+  if (!value) return null
+  return { type: 'status', text: value, kind }
+}
+
+function buildCodexLiveToolResult(callId, resultContent, timestamp, raw) {
+  const text = typeof resultContent === 'string'
+    ? resultContent.trim()
+    : (resultContent == null ? '' : String(resultContent).trim())
+
+  if (!callId || !text) return null
+
+  return {
+    type: 'tool_result',
+    parentUuid: callId,
+    content: {
+      type: 'tool_result',
+      tool_use_id: callId,
+      content: text
+    },
+    timestamp,
+    raw
+  }
+}
+
+function normalizeCodexEvents(msgs) {
+  const functionOutputs = new Map()
+  const execCommandEvents = new Map()
+  const customToolOutputs = new Map()
+  const patchApplyEvents = new Map()
+  const assistantMessageTexts = new Set()
+
+  for (const msg of msgs) {
+    if (msg.type === 'response_item' && msg.payload?.type === 'function_call_output' && msg.payload.call_id) {
+      functionOutputs.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'event_msg' && msg.payload?.type === 'exec_command_end' && msg.payload.call_id) {
+      execCommandEvents.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'response_item' && msg.payload?.type === 'custom_tool_call_output' && msg.payload.call_id) {
+      customToolOutputs.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'event_msg' && msg.payload?.type === 'patch_apply_end' && msg.payload.call_id) {
+      patchApplyEvents.set(msg.payload.call_id, msg)
+    }
+
+    if (msg.type === 'response_item' && msg.payload?.type === 'message' && msg.payload.role === 'assistant') {
+      const content = normalizeCodexAssistantContent(msg.payload.content)
+      const text = extractPlainText(content).trim()
+      if (text) assistantMessageTexts.add(text)
+    }
+  }
+
+  const users = []
+  const assistants = []
+
+  for (let index = 0; index < msgs.length; index++) {
+    const msg = msgs[index]
+
+    if (msg.type === 'response_item' && msg.payload?.type === 'message') {
+      const role = msg.payload.role
+
+      if (role === 'developer') continue
+
+      if (role === 'user') {
+        const cleanedContent = sanitizeCodexUserContent(msg.payload.content)
+        const preview = getUserPreviewText(cleanedContent)
+        if (!preview) continue
+
+        users.push({
+          id: `u_${users.length}`,
+          content: cleanedContent,
+          preview,
+          timestamp: msg.timestamp,
+          rawType: 'codex.user',
+          index
+        })
+        continue
+      }
+
+      if (role === 'assistant') {
+        const content = normalizeCodexAssistantContent(msg.payload.content)
+        const preview = extractPlainText(content)
+        if (!preview) continue
+
+        assistants.push({
+          id: `a_${assistants.length}`,
+          content,
+          timestamp: msg.timestamp,
+          raw: msg,
+          index
+        })
+      }
+
+      continue
+    }
+
+    if (msg.type === 'response_item' && msg.payload?.type === 'function_call' && msg.payload.call_id) {
+      const args = parseCodexArguments(msg.payload.arguments)
+      const normalizedTool = normalizeCodexToolCall(msg.payload.name, args, execCommandEvents.get(msg.payload.call_id))
+      if (!normalizedTool) continue
+      const content = []
+
+      if (normalizedTool.name) {
+        content.push({
+          type: 'tool_use',
+          id: msg.payload.call_id,
+          name: normalizedTool.name,
+          input: normalizedTool.input,
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+        })
+      } else if (normalizedTool.text) {
+        content.push({ type: 'text', text: normalizedTool.text })
+      } else {
+        continue
+      }
+
+      const resultContent = getCodexToolResult(msg.payload.call_id, functionOutputs, execCommandEvents)
+      if (resultContent) {
+        content.push({
+          type: 'tool_result',
+          tool_use_id: msg.payload.call_id,
+          content: resultContent
+        })
+      }
+
+      assistants.push({
+        id: msg.payload.call_id,
+        content,
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Reasoning / thinking blocks (encrypted content, skip when no summary)
+    if (msg.type === 'response_item' && msg.payload?.type === 'reasoning') {
+      const summary = Array.isArray(msg.payload.summary) ? msg.payload.summary.filter(Boolean).join('\n').trim() : ''
+      if (!summary) continue
+      assistants.push({
+        id: `reasoning_${index}`,
+        content: [{ type: 'thinking', thinking: summary }],
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Custom tool calls (MCP tools)
+    if (msg.type === 'response_item' && msg.payload?.type === 'custom_tool_call' && msg.payload.call_id) {
+      const toolName = msg.payload.name || 'unknown'
+      const toolInput = msg.payload.input || ''
+      const content = []
+
+      const normalizedTool = normalizeCodexToolCall(toolName, typeof toolInput === 'string' ? parseCodexArguments(toolInput) : toolInput)
+
+      if (normalizedTool.name) {
+        content.push({
+          type: 'tool_use',
+          id: msg.payload.call_id,
+          name: normalizedTool.name,
+          input: normalizedTool.input,
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+        })
+      } else if (normalizedTool.text) {
+        content.push({ type: 'text', text: normalizedTool.text })
+      } else {
+        content.push({
+          type: 'tool_use',
+          id: msg.payload.call_id,
+          name: toolName,
+          input: typeof toolInput === 'string' ? { raw: toolInput } : (toolInput || {})
+        })
+      }
+
+      // Attach result from custom_tool_call_output or patch_apply_end
+      const customOutput = customToolOutputs.get(msg.payload.call_id)
+      const patchEvent = patchApplyEvents.get(msg.payload.call_id)
+      let resultContent = ''
+
+      if (patchEvent?.payload) {
+        const p = patchEvent.payload
+        const parts = [p.success
+          ? `Patch applied: ${p.stdout || ''}`.trim()
+          : `Patch failed: ${p.stderr || p.stdout || ''}`.trim()]
+        if (p.changes && typeof p.changes === 'object') {
+          const files = Object.keys(p.changes)
+          if (files.length) parts.push(`Files: ${files.join(', ')}`)
+        }
+        resultContent = parts.filter(Boolean).join('\n')
+      } else if (customOutput?.payload?.output) {
+        resultContent = extractCodexToolOutput(customOutput.payload.output)
+      }
+
+      if (resultContent) {
+        content.push({
+          type: 'tool_result',
+          tool_use_id: msg.payload.call_id,
+          content: resultContent
+        })
+      }
+
+      assistants.push({
+        id: msg.payload.call_id,
+        content,
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Preserve commentary/final_answer updates unless the same text is also
+    // present in a canonical assistant response_item message.
+    if (msg.type === 'event_msg' && msg.payload?.type === 'agent_message') {
+      const text = typeof msg.payload.message === 'string' ? msg.payload.message.trim() : ''
+      if (!text || assistantMessageTexts.has(text)) continue
+
+      assistants.push({
+        id: `event_${index}`,
+        content: [{ type: 'text', text }],
+        timestamp: msg.timestamp,
+        raw: msg,
+        index
+      })
+      continue
+    }
+
+    // Collab events — render as status text
+    if (msg.type === 'event_msg') {
+      const et = msg.payload?.type
+      let statusText = ''
+
+      if (et === 'collab_agent_spawn_end') {
+        statusText = `Spawned agent ${msg.payload.new_agent_nickname || ''} (${msg.payload.new_agent_role || 'worker'})`
+      } else if (et === 'collab_agent_interaction_end') {
+        statusText = `Agent interaction: ${msg.payload.status || 'completed'}`
+      } else if (et === 'collab_waiting_end') {
+        statusText = 'Waiting on agents...'
+      } else if (et === 'collab_close_end') {
+        statusText = `Closed agent ${msg.payload.receiver_agent_nickname || ''}`
+      }
+
+      if (statusText) {
+        const statusBlock = createStatusBlock(statusText)
+        if (!statusBlock) continue
+        assistants.push({
+          id: `event_${index}`,
+          content: [statusBlock],
+          timestamp: msg.timestamp,
+          raw: msg,
+          index
+        })
+      }
+      continue
+    }
+  }
+
+  const mapping = {}
+  users.forEach(user => {
+    mapping[user.id] = []
+  })
+
+  const toDate = (value) => {
+    try {
+      return value ? new Date(value) : null
+    } catch (e) {
+      return null
+    }
+  }
+
+  users.forEach(user => {
+    user.ts = toDate(user.timestamp)
+  })
+  assistants.forEach(assistant => {
+    assistant.ts = toDate(assistant.timestamp)
+  })
+
+  for (const assistant of assistants) {
+    let assigned = null
+
+    if (assistant.ts) {
+      for (const user of users) {
+        if (user.ts && user.ts <= assistant.ts && (!assigned || user.ts > assigned.ts)) {
+          assigned = user
+        }
+      }
+    }
+
+    if (!assigned) {
+      for (const user of users) {
+        if (user.index <= assistant.index && (!assigned || user.index > assigned.index)) {
+          assigned = user
+        }
+      }
+    }
+
+    if (!assigned) continue
+
+    mapping[assigned.id].push({
+      id: assistant.id,
+      content: assistant.content,
+      timestamp: assistant.timestamp,
+      raw: assistant.raw
+    })
+  }
+
+  return {
+    users: users.map(({ index: _index, ts: _ts, ...user }) => user),
+    mapping
+  }
+}
+
+/**
+ * Normalize a single Codex event into a Claude Code–style message
+ * for SSE live updates. Returns null for non-conversational events.
+ */
+function normalizeCodexEvent(msg) {
+  if (!msg || typeof msg !== 'object') return null
+  if (msg.type === 'session_meta') return null
+
+  if (msg.type === 'response_item') {
+    const p = msg.payload || {}
+
+    if (p.type === 'message') {
+      if (p.role === 'user') {
+        const cleanedContent = sanitizeCodexUserContent(p.content)
+        const preview = getUserPreviewText(cleanedContent)
+        if (!preview) return null
+        return { type: 'user', content: cleanedContent, timestamp: msg.timestamp, raw: msg }
+      }
+      if (p.role === 'assistant') {
+        const content = normalizeCodexAssistantContent(p.content)
+        const text = extractPlainText(content).trim()
+        if (!text) return null
+        return { type: 'assistant', content, timestamp: msg.timestamp, raw: msg }
+      }
+      return null // developer or unknown role
+    }
+
+    if (p.type === 'function_call' || p.type === 'custom_tool_call') {
+      const toolName = p.name || 'unknown'
+      const args = typeof p.arguments === 'string' ? parseCodexArguments(p.arguments) : (p.input || {})
+      const normalizedTool = normalizeCodexToolCall(toolName, args)
+      const content = []
+
+      if (normalizedTool?.name) {
+        content.push({
+          type: 'tool_use',
+          id: p.call_id || `tc_${Date.now()}`,
+          name: normalizedTool.name,
+          input: normalizedTool.input,
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+        })
+      } else if (normalizedTool?.text) {
+        content.push({ type: 'text', text: normalizedTool.text })
+      } else {
+        content.push({
+          type: 'tool_use',
+          id: p.call_id || `tc_${Date.now()}`,
+          name: toolName,
+          input: args
+        })
+      }
+
+      return { type: 'assistant', content, timestamp: msg.timestamp, raw: msg }
+    }
+
+    if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output') {
+      const resultContent = extractCodexToolOutput(p.output)
+      return buildCodexLiveToolResult(p.call_id, resultContent, msg.timestamp, msg)
+    }
+
+    if (p.type === 'reasoning') {
+      const summary = Array.isArray(p.summary) ? p.summary.filter(Boolean).join('\n').trim() : ''
+      if (!summary) return null
+      return { type: 'assistant', content: [{ type: 'thinking', thinking: summary }], timestamp: msg.timestamp, raw: msg }
+    }
+
+    return null // function_call_output, custom_tool_call_output, etc.
+  }
+
+  if (msg.type === 'event_msg') {
+    const p = msg.payload || {}
+
+    if (p.type === 'exec_command_end') {
+      return buildCodexLiveToolResult(p.call_id, p.aggregated_output, msg.timestamp, msg)
+    }
+
+    if (p.type === 'patch_apply_end') {
+      const parts = [p.success
+        ? `Patch applied: ${p.stdout || ''}`.trim()
+        : `Patch failed: ${p.stderr || p.stdout || ''}`.trim()]
+      if (p.changes && typeof p.changes === 'object') {
+        const files = Object.keys(p.changes)
+        if (files.length) parts.push(`Files: ${files.join(', ')}`)
+      }
+      return buildCodexLiveToolResult(p.call_id, parts.filter(Boolean).join('\n'), msg.timestamp, msg)
+    }
+
+    if (p.type === 'agent_message') {
+      const text = typeof p.message === 'string' ? p.message.trim() : ''
+      if (!text) return null
+      return { type: 'assistant', content: [{ type: 'text', text }], timestamp: msg.timestamp, raw: msg }
+    }
+
+    const collabStatus = {
+      collab_agent_spawn_end: () => `Spawned agent ${p.new_agent_nickname || ''} (${p.new_agent_role || 'worker'})`,
+      collab_agent_interaction_end: () => `Agent interaction: ${p.status || 'completed'}`,
+      collab_waiting_end: () => 'Waiting on agents...',
+      collab_close_end: () => `Closed agent ${p.receiver_agent_nickname || ''}`
+    }
+    if (collabStatus[p.type]) {
+      const statusBlock = createStatusBlock(collabStatus[p.type]())
+      if (!statusBlock) return null
+      return { type: 'assistant', content: [statusBlock], timestamp: msg.timestamp, raw: msg }
+    }
+
+    return null
+  }
+
+  return null
+}
+
 async function mapSessionMessages(filePath) {
   const msgs = await readSessionFile(filePath)
 
@@ -861,11 +1822,28 @@ async function mapSessionMessages(filePath) {
     && msgs.length > 0 && msgs[0].type === 'session.start'
   if (isCopilot) return normalizeCopilotEvents(msgs)
 
+  const isCodex = msgs.length > 0
+    && msgs[0].type === 'session_meta'
+    && msgs.some(msg => msg.type === 'response_item')
+  if (isCodex) return normalizeCodexEvents(msgs)
+
   const users = []
   const assistants = []
 
   // Normalize messages with canonical id, type, timestamp, and content
   const norm = msgs.map((m, i) => {
+  if (shouldHideRawSessionEvent(m)) {
+    return {
+      raw: m,
+      rawType: m.type,
+      id: m.uuid || (m.message && m.message.id) || m.id || `i_${i}`,
+      type: 'hidden',
+      timestamp: m.timestamp || (m.message && m.message.timestamp) || null,
+      content: null,
+      index: i,
+      parentUuid: m.parentUuid || m.parentId
+    }
+  }
   const id = m.uuid || (m.message && m.message.id) || m.id || `i_${i}`
   const rawType = m.type
   let type = rawType
@@ -873,8 +1851,7 @@ async function mapSessionMessages(filePath) {
 
     // Normalize Copilot event types: user.message -> user, assistant.message -> assistant
     if (type === 'user.message') type = 'user'
-    if (type === 'assistant.message' || type === 'assistant.turn_start' || type === 'assistant.turn_end') type = 'assistant'
-    if (type === 'tool.execution_start' || type === 'tool.execution_complete') type = 'assistant'
+    if (type === 'assistant.message') type = 'assistant'
     if (type === 'system.message' || type === 'session.start' || type === 'session.model_change' || type === 'session.info' || type === 'session.plan_changed') type = 'system'
 
     // Normalize tool messages to assistant (tool_use, tool_result, etc.)

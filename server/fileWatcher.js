@@ -1,8 +1,52 @@
 const fs = require('fs')
 const { watch } = require('chokidar')
+const fsHelpers = require('./fsHelpers')
 
 // Map filePath -> { watcher, subscribers: Set(res), offset }
 const watchers = new Map()
+
+function inferSessionFormat(parsed) {
+  if (!parsed || typeof parsed !== 'object') return null
+  if (parsed.type === 'session_meta') return 'codex'
+  return null
+}
+
+function detectSessionFormat(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r')
+    const buffer = Buffer.alloc(8192)
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0)
+    fs.closeSync(fd)
+
+    if (bytesRead <= 0) return 'generic'
+
+    const lines = buffer.toString('utf8', 0, bytesRead).split(/\r?\n/).filter(Boolean)
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line)
+        const format = inferSessionFormat(parsed)
+        if (format) return format
+      } catch (e) {
+        // Ignore malformed lines while sniffing the session format.
+      }
+    }
+  } catch (e) {
+    return 'generic'
+  }
+
+  return 'generic'
+}
+
+function normalizeAppendedLine(parsed, rawLine, sessionFormat) {
+  if (sessionFormat === 'codex') {
+    const normalized = fsHelpers.normalizeCodexEvent(parsed)
+    return normalized ? JSON.stringify(normalized) : null
+  }
+
+  if (fsHelpers.shouldHideRawSessionEvent(parsed)) return null
+
+  return rawLine
+}
 
 function ensureWatcher(filePath) {
   let info = watchers.get(filePath)
@@ -14,7 +58,7 @@ function ensureWatcher(filePath) {
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
   })
 
-  info = { watcher, subscribers: new Set(), offset: 0 }
+  info = { watcher, subscribers: new Set(), offset: 0, sessionFormat: detectSessionFormat(filePath) }
 
   // Initialize offset to file size if file exists
   try {
@@ -39,8 +83,16 @@ function ensureWatcher(filePath) {
           const lines = data.split(/\r?\n/).filter(Boolean)
           for (const s of info.subscribers) {
             for (const line of lines) {
+              let parsed
+              try { parsed = JSON.parse(line) } catch { continue }
+              const inferredFormat = inferSessionFormat(parsed)
+              if (inferredFormat && info.sessionFormat !== inferredFormat) info.sessionFormat = inferredFormat
+
+              const normalizedLine = normalizeAppendedLine(parsed, line, info.sessionFormat)
+              if (!normalizedLine) continue
+
               try { s.write(`event: session_appended\n`) } catch(e){}
-              try { s.write(`data: ${JSON.stringify({ file: filePath, line })}\n\n`) } catch(e){}
+              try { s.write(`data: ${JSON.stringify({ file: filePath, line: normalizedLine })}\n\n`) } catch(e){}
             }
           }
         })
@@ -82,4 +134,12 @@ function unsubscribe(filePath, res) {
   }
 }
 
-module.exports = { subscribe, unsubscribe }
+module.exports = {
+  subscribe,
+  unsubscribe,
+  _private: {
+    detectSessionFormat,
+    inferSessionFormat,
+    normalizeAppendedLine
+  }
+}

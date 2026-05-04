@@ -21,6 +21,8 @@
 </template>
 
 <script>
+import { SOURCE_LABELS } from '../constants.js'
+
 export default {
   props: { selected: { type: Object, default: null } },
   data() {
@@ -60,11 +62,7 @@ export default {
       return p.name
     },
     sourceLabel(src) {
-      const labels = {
-        claudecode: 'Claude',
-        gcopilot: 'Copilot'
-      }
-      return labels[src] || src
+      return SOURCE_LABELS[src] || src
     },
     formatSessionCount(p) {
       // Handle new format: { claudecode: 5, gcopilot: 10 }
@@ -72,6 +70,7 @@ export default {
         const parts = []
         if (p.sessionCount.claudecode) parts.push(`${p.sessionCount.claudecode} Claude`)
         if (p.sessionCount.gcopilot) parts.push(`${p.sessionCount.gcopilot} Copilot`)
+        if (p.sessionCount.codex) parts.push(`${p.sessionCount.codex} Codex`)
         return parts.join(', ')
       }
       // Fallback for old format: sessionCount is a number

@@ -19,7 +19,7 @@
             <div class="session-time">
               {{ formatTime(s.lastTime || s.startTime) }}
               <span class="muted">({{ s.messageCount }})</span>
-              <span v-if="s.source === 'gcopilot'" :class="['source-badge', s.source]">
+              <span v-if="s.source && s.source !== 'claudecode'" :class="['source-badge', s.source]">
                 {{ sourceLabel(s.source) }}
               </span>
               <span v-if="s.branches && s.branches.length" class="branch-badge">
@@ -38,6 +38,7 @@
 
 <script>
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { SOURCE_LABELS } from '../constants.js'
 export default {
   props: ['project', 'currentSessionFile'],
   data() { return { sessions: [], loading: false } },
@@ -136,11 +137,7 @@ export default {
       }
     },
     sourceLabel(src) {
-      const labels = {
-        claudecode: 'Claude',
-        gcopilot: 'Copilot'
-      }
-      return labels[src] || src
+      return SOURCE_LABELS[src] || src
     }
   },
   computed: {

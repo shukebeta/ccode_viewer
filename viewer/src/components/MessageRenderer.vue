@@ -313,6 +313,13 @@ function renderThinking(c) {
   return '<div class="thinking-block"><span class="thinking-placeholder-label">thinking…</span>' + thinkingBody + '</div>'
 }
 
+function renderStatus(c) {
+  const text = typeof c.text === 'string' ? c.text.trim() : ''
+  if (!text) return ''
+  const kind = typeof c.kind === 'string' ? c.kind.trim() : 'runtime'
+  return `<div class="status-block status-block-${escapeAttribute(kind)}"><span class="status-block-dot" aria-hidden="true"></span><span class="status-block-text">${escapeHtml(text)}</span></div>`
+}
+
 function formatDuration(durationMs) {
   const duration = Number(durationMs)
   if (!Number.isFinite(duration) || duration <= 0) return ''
@@ -661,6 +668,7 @@ function contentToHtml(c) {
   const t = c.type || (c.message && c.message.type) || null
   // Hide system metadata blocks
   if (t === 'permission-mode' || t === 'last-prompt' || t === 'ai-title' || t === 'skill_listing') return ''
+  if (t === 'status') return renderStatus(c)
   if (t === 'text' || t === 'message' || t === 'paragraph') return renderPlain(c)
   if (t === 'code' || t === 'program' || c.language) return renderCode(c)
   if (t === 'tool_result') return renderToolResult(c)
