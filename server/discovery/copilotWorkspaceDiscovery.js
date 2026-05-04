@@ -3,6 +3,8 @@ const path = require('path')
 const os = require('os')
 
 const DEFAULT_COPILOT_SESSION_PATH = path.join(os.homedir(), '.copilot', 'session-state')
+const DEFAULT_DISCOVERY_CACHE_TTL_MS = 2000
+const discoveryCache = new Map()
 
 function getCopilotSessionRoots(env = process.env) {
   const configuredRoot = env.COPILOT_SESSION_PATH
@@ -129,10 +131,30 @@ async function getSessionLastUpdated(sessionPath, sessionFilePath, deps = {}) {
   }
 }
 
+function getDiscoveryCacheKey(rootPaths) {
+  return rootPaths.join('||')
+}
+
+function clearCopilotDiscoveryCache() {
+  discoveryCache.clear()
+}
+
 async function discoverCopilotWorkspaces(options = {}) {
   const fsModule = options.fsModule || fs
   const pathModule = options.pathModule || path
   const rootPaths = options.rootPaths || getCopilotSessionRoots(options.env)
+  const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_DISCOVERY_CACHE_TTL_MS
+  const bypassCache = options.bypassCache === true
+  const now = typeof options.now === 'number' ? options.now : Date.now()
+  const cacheKey = getDiscoveryCacheKey(rootPaths)
+
+  if (!bypassCache && cacheTtlMs > 0) {
+    const cached = discoveryCache.get(cacheKey)
+    if (cached && cached.expiresAt > now) {
+      return cached.discoveries
+    }
+  }
+
   const discoveries = []
 
   for (const rootPath of rootPaths) {
@@ -177,16 +199,25 @@ async function discoverCopilotWorkspaces(options = {}) {
     }
   }
 
+  if (cacheTtlMs > 0) {
+    discoveryCache.set(cacheKey, {
+      discoveries,
+      expiresAt: now + cacheTtlMs
+    })
+  }
+
   return discoveries
 }
 
 module.exports = {
   DEFAULT_COPILOT_SESSION_PATH,
+  DEFAULT_DISCOVERY_CACHE_TTL_MS,
   getCopilotSessionRoots,
   getCopilotSessionPath,
   readCopilotWorkspace,
   extractCopilotProjectPath,
   resolveSessionFilePath,
   resolveCopilotProjectPath,
-  discoverCopilotWorkspaces
+  discoverCopilotWorkspaces,
+  clearCopilotDiscoveryCache
 }

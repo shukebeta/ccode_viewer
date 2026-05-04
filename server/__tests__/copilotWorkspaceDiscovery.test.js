@@ -3,11 +3,13 @@ const os = require('os')
 const path = require('path')
 const {
   DEFAULT_COPILOT_SESSION_PATH,
+  DEFAULT_DISCOVERY_CACHE_TTL_MS,
   getCopilotSessionRoots,
   readCopilotWorkspace,
   resolveSessionFilePath,
   resolveCopilotProjectPath,
-  discoverCopilotWorkspaces
+  discoverCopilotWorkspaces,
+  clearCopilotDiscoveryCache
 } = require('../discovery/copilotWorkspaceDiscovery')
 
 const createdDirs = []
@@ -19,6 +21,7 @@ function makeTempDir(prefix) {
 }
 
 afterEach(() => {
+  clearCopilotDiscoveryCache()
   while (createdDirs.length > 0) {
     fs.rmSync(createdDirs.pop(), { recursive: true, force: true })
   }
@@ -28,6 +31,7 @@ describe('copilotWorkspaceDiscovery', () => {
   it('prefers the configured session root and otherwise falls back to the default root', () => {
     expect(getCopilotSessionRoots({ COPILOT_SESSION_PATH: '/tmp/copilot-root' })).toEqual(['/tmp/copilot-root'])
     expect(getCopilotSessionRoots({})).toEqual([DEFAULT_COPILOT_SESSION_PATH])
+    expect(DEFAULT_DISCOVERY_CACHE_TTL_MS).toBeGreaterThan(0)
   })
 
   it('reads workspace metadata from directory-based Copilot sessions', async () => {
@@ -122,5 +126,40 @@ describe('copilotWorkspaceDiscovery', () => {
         })
       ])
     )
+  })
+
+  it('reuses cached discovery results within the TTL window', async () => {
+    const fsModule = {
+      readdirCalls: 0,
+      async readdir() {
+        this.readdirCalls += 1
+        return []
+      }
+    }
+
+    const first = await discoverCopilotWorkspaces({
+      rootPaths: ['/tmp/copilot-cache-test'],
+      fsModule,
+      now: 1000,
+      cacheTtlMs: 5000
+    })
+    const second = await discoverCopilotWorkspaces({
+      rootPaths: ['/tmp/copilot-cache-test'],
+      fsModule,
+      now: 2000,
+      cacheTtlMs: 5000
+    })
+    const third = await discoverCopilotWorkspaces({
+      rootPaths: ['/tmp/copilot-cache-test'],
+      fsModule,
+      now: 7001,
+      cacheTtlMs: 5000
+    })
+
+    expect(first).toEqual([])
+    expect(second).toBe(first)
+    expect(third).toEqual([])
+    expect(third).not.toBe(first)
+    expect(fsModule.readdirCalls).toBe(2)
   })
 })

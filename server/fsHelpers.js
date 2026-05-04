@@ -556,10 +556,10 @@ async function getProjects() {
 /**
  * Parse a Copilot session directory and extract session metadata
  */
-async function parseCopilotSession(sessionDir) {
+async function parseCopilotSession(sessionDir, discovery = null) {
   try {
-    const eventsPath = await resolveSessionFilePath(sessionDir)
-    const stats = await fs.stat(eventsPath)
+    const eventsPath = discovery?.sessionFilePath || await resolveSessionFilePath(sessionDir)
+    const stats = discovery?.lastUpdated ? { mtime: discovery.lastUpdated } : await fs.stat(eventsPath)
 
     let content
     try {
@@ -569,8 +569,9 @@ async function parseCopilotSession(sessionDir) {
     }
 
     const lines = content.trim().split('\n')
-    const sessionStat = await fs.stat(sessionDir)
-    const workspace = sessionStat.isDirectory() ? await readCopilotWorkspace(sessionDir) : null
+    const workspace = discovery?.workspace !== undefined
+      ? discovery.workspace
+      : ((await fs.stat(sessionDir)).isDirectory() ? await readCopilotWorkspace(sessionDir) : null)
 
     let startTime, endTime
     let messageCount = 0
@@ -656,7 +657,7 @@ async function getCopilotSessions(projectId) {
 
       // Only include sessions for the requested project
       if (sessionProjectId === projectId) {
-        const session = await parseCopilotSession(discovery.sessionPath)
+        const session = await parseCopilotSession(discovery.sessionPath, discovery)
         if (session && session.messageCount >= 3) {
           sessions.push(session)
         }

@@ -6,6 +6,12 @@ const fileWatcher = require('./fileWatcher')
 
 const DEFAULT_PORT = 6173
 
+function asyncRoute(handler) {
+  return (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next)
+  }
+}
+
 function createApp(options = {}) {
   const publicDir = options.publicDir || path.join(__dirname, 'public')
   const app = express()
@@ -14,31 +20,31 @@ function createApp(options = {}) {
   app.use(express.json())
   app.use(express.static(publicDir))
 
-  app.get('/api/projects', async (req, res) => {
+  app.get('/api/projects', asyncRoute(async (req, res) => {
     const projects = await fsHelpers.getProjects()
     res.json(projects)
-  })
+  }))
 
-  app.get('/api/sessions', async (req, res) => {
+  app.get('/api/sessions', asyncRoute(async (req, res) => {
     const project = req.query.project
     if (!project) return res.status(400).json({ error: 'project query required' })
     const sessions = await fsHelpers.getSessions(project)
     res.json(sessions)
-  })
+  }))
 
-  app.get('/api/session', async (req, res) => {
+  app.get('/api/session', asyncRoute(async (req, res) => {
     const file = req.query.file
     if (!file) return res.status(400).json({ error: 'file query required' })
     const messages = await fsHelpers.readSessionFile(file)
     res.json(messages)
-  })
+  }))
 
-  app.get('/api/session-mapping', async (req, res) => {
+  app.get('/api/session-mapping', asyncRoute(async (req, res) => {
     const file = req.query.file
     if (!file) return res.status(400).json({ error: 'file query required' })
     const mapping = await fsHelpers.mapSessionMessages(file)
     res.json(mapping)
-  })
+  }))
 
   app.delete('/api/session', async (req, res) => {
     const file = req.query.file
@@ -53,7 +59,7 @@ function createApp(options = {}) {
   })
 
   // Cross-session search endpoint
-  app.get('/api/projects/:projectId/search', async (req, res) => {
+  app.get('/api/projects/:projectId/search', asyncRoute(async (req, res) => {
     const { projectId } = req.params
     const { q } = req.query
     if (!q || q.length < 3) {
@@ -66,7 +72,7 @@ function createApp(options = {}) {
       console.error('Search error:', err)
       res.status(500).json({ error: 'Search failed' })
     }
-  })
+  }))
 
   // Server-Sent Events endpoint for session file updates
   app.get('/api/events', async (req, res) => {
@@ -92,6 +98,12 @@ function createApp(options = {}) {
     fileWatcher.subscribe(watchFile, res)
 
     // On client close, fileWatcher will remove the subscriber via res.on('close')
+  })
+
+  app.use((err, req, res, next) => {
+    console.error('Unhandled server error:', err)
+    if (res.headersSent) return next(err)
+    res.status(500).json({ error: err.message || 'Internal server error' })
   })
 
   return app
