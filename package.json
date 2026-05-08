@@ -14,7 +14,7 @@
     "desktop:prepare": "node scripts/prepare-tauri.mjs",
     "desktop:dev": "pnpm tauri dev",
     "desktop:build": "pnpm tauri build",
-    "package:tauri": "pnpm run desktop:build",
+    "package:tauri": "pnpm install && pnpm run desktop:build",
     "package:exe": "node scripts/package-exe.mjs",
     "install:all": "npm install && cd server && npm install && cd ../viewer && npm install",
     "test": "cd server && npm test",
