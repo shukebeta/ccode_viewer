@@ -28,7 +28,25 @@
             </div>
             <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
           </button>
-          <button v-if="!isToday(s.lastTime || s.startTime)" class="delete-btn" @click="confirmDelete(s)" title="Delete session">×</button>
+          <div class="session-actions">
+            <button
+              type="button"
+              class="copy-cmd-btn"
+              :class="{ copied: !!s._copiedCmd }"
+              :title="`Copy: ${buildResumeCommand(s)}`"
+              :aria-label="`Copy resume command for ${sourceLabel(s.source || 'claudecode')} session`"
+              @click="copyResumeCommand(s)"
+            >
+              <svg v-if="s._copiedCmd" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
+            <button v-if="!isToday(s.lastTime || s.startTime)" class="delete-btn" @click="confirmDelete(s)" title="Delete session">×</button>
+          </div>
         </div>
       </li>
     </ul>
@@ -138,6 +156,36 @@ export default {
     },
     sourceLabel(src) {
       return SOURCE_LABELS[src] || src
+    },
+    buildResumeCommand(s) {
+      const id = (s && s.id) || ''
+      const src = (s && s.source) || 'claudecode'
+      switch (src) {
+        case 'codex': return `codex resume ${id}`
+        case 'gcopilot': return `copilot --resume=${id}`
+        case 'claudecode':
+        default: return `claude --resume ${id}`
+      }
+    },
+    async copyResumeCommand(s) {
+      const cmd = this.buildResumeCommand(s)
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(cmd)
+        } else {
+          const ta = document.createElement('textarea')
+          ta.value = cmd
+          document.body.appendChild(ta)
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+        }
+        s._copiedCmd = true
+        setTimeout(() => { s._copiedCmd = false }, 1500)
+      } catch (e) {
+        console.error('Failed to copy resume command', e)
+        ElMessage.error('Failed to copy command')
+      }
     }
   },
   computed: {

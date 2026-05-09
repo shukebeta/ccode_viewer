@@ -47,15 +47,15 @@
     :key="m.id || idx"
     :id="`msg-${m.id || idx}`"
     class="assistant-item"
-    :class="{ 'flash': m._flash, 'compact-entry': m._compactDisplay }"
+    :class="{ 'flash': m._flash, 'compact-entry': m._compactDisplay, 'highlighted': m.id === highlightedMessageId }"
     :data-display="m.displayType"
   >
             <div class="assistant-card card" :class="{ muted: m.muted, 'with-toolbar': !m._noCopy }">
             <div class="assistant-full">
               <div v-if="!m._noCopy" class="assistant-toolbar">
                 <div class="copy-group">
-                  <ActionIconButton class="copy-btn text-copy" :class="{ copied: m._copiedText }" icon="copy" label="Copy text" active-label="Copied text" @click.prevent="copyText(m)" />
-                  <ActionIconButton class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" icon="document" label="Copy source JSON" active-label="Copied raw" @click.prevent="copyRaw(m)" />
+                  <ActionIconButton class="copy-btn text-copy" :class="{ copied: m._copiedText }" icon="copy" :active="m._copiedText" active-icon="check" label="Copy text" active-label="Copied text" @click.prevent="copyText(m)" />
+                  <ActionIconButton class="copy-btn raw-copy" :class="{ copied: m._copiedRaw }" icon="document" :active="m._copiedRaw" active-icon="check" label="Copy source JSON" active-label="Copied raw" @click.prevent="copyRaw(m)" />
                 </div>
               </div>
               <MessageRenderer :content="m.content" :showRawCopy="false" />
@@ -98,6 +98,7 @@ export default {
       allMessages: [],
       loading: false,
       selectedUser: null,
+      highlightedMessageId: null,
       es: null,
       sessionCache: new Map() // Cache for session data
     }
@@ -460,6 +461,17 @@ export default {
     selectUser(u) {
       if (u && u.nonInteractive && !u.interruption) return
       this.selectedUser = u
+      this.highlightedMessageId = u.id
+
+      const targetMessage = this.allMessages.find(message => message.id === u.id)
+      if (targetMessage) {
+        targetMessage._flash = false
+        this.$nextTick(() => {
+          targetMessage._flash = true
+          setTimeout(() => { targetMessage._flash = false }, 1800)
+        })
+      }
+
       this.$nextTick(() => {
         // Scroll Users column (left side) to the selected user
         const userIndex = this.visibleUsers.findIndex(user => user.id === u.id)
@@ -474,16 +486,7 @@ export default {
         // Scroll Conversation column (right side) to the message
         const id = `msg-${u.id}`
         const el = document.getElementById(id)
-        if (!el) return
-
-        // Highlight the user message element itself (or its internal card) so
-        // bookmarks behave like left-side entries even if no assistant reply exists.
-        const card = el.querySelector('.assistant-card') || el
         if (el) el.scrollIntoView({ behavior: 'instant', block: 'center' })
-        if (card) {
-          card.classList.add('flash')
-          setTimeout(() => card.classList.remove('flash'), 2600)
-        }
       })
     }
       ,
@@ -852,19 +855,27 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
   background: rgba(168, 162, 158, 0.34);
 }
 .muted-note { color: #666; font-style: italic; margin-top: 4px; font-size: 13px }
-.flash { animation: flash-bg 1.8s ease-in-out }
+.assistant-item.flash .assistant-card { animation: flash-bg 1.8s ease-in-out }
 @keyframes flash-bg {
   0% {
-    background: rgba(37, 99, 235, 0.08);
-    box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.35);
+    background: rgba(37, 99, 235, 0.18);
+    box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.55);
   }
   70% {
-    background: transparent;
-    box-shadow: none;
+    background: rgba(37, 99, 235, 0.07);
+    box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.55);
   }
   100% {
-    background: transparent;
-    box-shadow: none;
+    background: rgba(37, 99, 235, 0.07);
+    box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.55);
   }
+}
+.assistant-item.highlighted .assistant-card {
+  background: rgba(37, 99, 235, 0.07);
+  border-radius: 6px;
+}
+.assistant-item.highlighted .assistant-card::before {
+  background: rgba(37, 99, 235, 0.7);
+  width: 3px;
 }
 </style>
