@@ -59,7 +59,14 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import { SOURCE_LABELS } from '../constants.js'
 export default {
   props: ['project', 'currentSessionFile'],
-  data() { return { sessions: [], loading: false } },
+  data() {
+    return {
+      sessions: [],
+      loading: false,
+      loadRequestId: 0,
+      loadAbortController: null
+    }
+  },
   mounted() {
     // Scroll to active session on mount (when returning from search)
     if (this.currentSessionFile) {
@@ -73,6 +80,12 @@ export default {
       })
     }
   },
+  beforeUnmount() {
+    if (this.loadAbortController) {
+      this.loadAbortController.abort()
+      this.loadAbortController = null
+    }
+  },
   watch: {
     project: {
       immediate: true,
@@ -84,19 +97,37 @@ export default {
       if (!this.project) return
 
       const key = this.project.id || this.project.name
+      const requestId = ++this.loadRequestId
+      if (this.loadAbortController) {
+        this.loadAbortController.abort()
+      }
+      const controller = new AbortController()
+      this.loadAbortController = controller
       this.loading = true
       let sessions = []
       try {
-        const res = await fetch('/api/sessions?project=' + encodeURIComponent(key))
+        const res = await fetch('/api/sessions?project=' + encodeURIComponent(key), {
+          signal: controller.signal
+        })
         const json = await res.json()
+        if (requestId !== this.loadRequestId) return
         sessions = Array.isArray(json) ? json : []
         this.sessions = sessions
       } catch (e) {
+        if (e && e.name === 'AbortError') return
         console.error(e)
-        this.sessions = []
+        if (requestId === this.loadRequestId) {
+          this.sessions = []
+        }
+      } finally {
+        if (requestId === this.loadRequestId) {
+          this.loading = false
+          if (this.loadAbortController === controller) {
+            this.loadAbortController = null
+          }
+          this.$emit('sessions-loaded', { projectKey: key, sessions: this.sessions })
+        }
       }
-      this.loading = false
-      this.$emit('sessions-loaded', { projectKey: key, sessions: this.sessions })
     }
     , formatTime(ts) {
       if (!ts) return ''

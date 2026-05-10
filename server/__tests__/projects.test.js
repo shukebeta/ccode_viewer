@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { getProjects, getSessions } from '../fsHelpers'
+import { deleteSession, getProjects, getSessions } from '../fsHelpers'
 
 const createdSessionDirs = []
 const createdProjectDirs = []
@@ -155,6 +155,32 @@ describe('getProjects', () => {
       path: workspaceCwd
     })
     expect(project.sources).toContain('codex')
+  })
+
+  it('drops deleted Copilot-only projects immediately after session deletion', async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const { copilotRoot } = configureSourceRoots(suffix)
+    fs.mkdirSync(copilotRoot, { recursive: true })
+    const sessionDir = path.join(copilotRoot, `ccode-viewer-delete-test-${suffix}`)
+    const workspaceCwd = `/tmp/ccode-viewer-delete-test-${suffix}/gridai-auto-job`
+    const projectId = workspaceCwd.replace(/\\/g, '/').replace(/^\/+/, '-').replace(/[^a-zA-Z0-9-]/g, '-')
+
+    fs.mkdirSync(sessionDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(sessionDir, 'workspace.yaml'),
+      `cwd: ${workspaceCwd}\n`,
+      'utf8'
+    )
+    fs.writeFileSync(path.join(sessionDir, 'events.jsonl'), '{}\n', 'utf8')
+    createdSessionDirs.push(sessionDir)
+
+    const beforeDelete = await getProjects()
+    expect(beforeDelete.find((entry) => entry.id === projectId)).toBeDefined()
+
+    await deleteSession(sessionDir)
+
+    const afterDelete = await getProjects()
+    expect(afterDelete.find((entry) => entry.id === projectId)).toBeUndefined()
   })
 })
 

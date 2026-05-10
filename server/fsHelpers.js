@@ -2,18 +2,21 @@ const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
 const { extractPlainText, getUserPreviewText } = require('../shared/messageContent')
+const {
+  readCopilotWorkspace,
+  extractCopilotProjectPath,
+  resolveSessionFilePath,
+  resolveCopilotProjectPath,
+  discoverCopilotWorkspaces,
+  clearCopilotDiscoveryCache
+} = require('./discovery/copilotWorkspaceDiscovery')
 
 const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
-const COPILOT_SESSION_PATH = path.join(os.homedir(), '.copilot', 'session-state')
 const CODEX_SESSIONS_PATH = path.join(os.homedir(), '.codex', 'sessions')
 const CODEX_ENVIRONMENT_CONTEXT_RE = /<environment_context>[\s\S]*?<\/environment_context>\s*/gi
 
 function getClaudeProjectsPath() {
   return process.env.CLAUDE_PROJECTS_PATH || CLAUDE_PROJECTS_PATH
-}
-
-function getCopilotSessionPath() {
-  return process.env.COPILOT_SESSION_PATH || COPILOT_SESSION_PATH
 }
 
 function getCodexSessionsPath() {
@@ -164,18 +167,6 @@ function normalizePathToProjectId(filePath) {
 
   // Fallback: just replace slashes with dashes
   return normalized.toLowerCase().replace(/\//g, '-')
-}
-
-/**
- * Parse simple YAML (key: value pairs only) — used for workspace.yaml
- */
-function parseSimpleYaml(text) {
-  const result = {}
-  for (const line of text.split('\n')) {
-    const match = line.match(/^(\w[\w_]*):\s*(.+)$/)
-    if (match) result[match[1]] = match[2].trim()
-  }
-  return result
 }
 
 function parseJsonLine(line) {
@@ -348,86 +339,6 @@ function pathToClaudeDirName(filePath) {
   return normalized.replace(/[^a-zA-Z0-9-]/g, '-')
 }
 
-/**
- * Read workspace.yaml from a Copilot session directory
- * Returns { cwd, gitRoot, branch, summary, ... } or null
- */
-async function readCopilotWorkspace(sessionDir) {
-  try {
-    const content = await fs.readFile(path.join(sessionDir, 'workspace.yaml'), 'utf8')
-    return parseSimpleYaml(content)
-  } catch (e) {
-    return null
-  }
-}
-
-async function extractCopilotProjectPath(sessionFilePath) {
-  try {
-    const content = await fs.readFile(sessionFilePath, 'utf8')
-    const lines = content.trim().split('\n')
-
-    for (const line of lines) {
-      try {
-        const data = JSON.parse(line)
-        const directPath = data?.data?.arguments?.path
-        const toolRequests = Array.isArray(data?.data?.toolRequests) ? data.data.toolRequests : []
-        const requestPath = toolRequests.find((request) => request?.arguments?.path)?.arguments?.path
-        const candidatePath = directPath || requestPath
-
-        if (!candidatePath || typeof candidatePath !== 'string') continue
-
-        const parts = candidatePath.split(/[\\/]/)
-        if (/^[A-Za-z]:\\/.test(candidatePath) || /^[A-Za-z]:\//.test(candidatePath)) {
-          if (parts.length > 4) return parts.slice(0, 4).join(path.sep)
-          return candidatePath
-        }
-
-        if (candidatePath.startsWith('/')) {
-          if (parts.length > 4) return parts.slice(0, 4).join(path.sep) || path.sep
-          return candidatePath
-        }
-      } catch (e) {
-        // Skip invalid JSON lines
-      }
-    }
-
-    return null
-  } catch (e) {
-    return null
-  }
-}
-
-async function resolveSessionFilePath(filePath) {
-  const stat = await fs.stat(filePath)
-  if (!stat.isDirectory()) return filePath
-  return path.join(filePath, 'events.jsonl')
-}
-
-async function resolveCopilotProjectPath(sessionPath) {
-  try {
-    const stat = await fs.stat(sessionPath)
-    if (stat.isDirectory()) {
-      const workspace = await readCopilotWorkspace(sessionPath)
-      if (workspace?.cwd) return workspace.cwd
-
-      try {
-        const sessionFile = await resolveSessionFilePath(sessionPath)
-        return await extractCopilotProjectPath(sessionFile)
-      } catch (e) {
-        return null
-      }
-    }
-
-    if (path.extname(sessionPath).toLowerCase() === '.jsonl') {
-      return await extractCopilotProjectPath(sessionPath)
-    }
-  } catch (e) {
-    return null
-  }
-
-  return null
-}
-
 async function extractCodexProjectPath(sessionFilePath) {
   try {
     const content = await fs.readFile(sessionFilePath, 'utf8')
@@ -488,24 +399,11 @@ async function getCopilotProjects() {
   const projectMap = new Map()
 
   try {
-    const entries = await fs.readdir(getCopilotSessionPath(), { withFileTypes: true })
+    const discoveries = await discoverCopilotWorkspaces()
 
-    for (const entry of entries) {
-      const isLegacyFile = entry.isFile() && path.extname(entry.name).toLowerCase() === '.jsonl'
-      if (!entry.isDirectory() && !isLegacyFile) continue
-
-      const sessionPath = path.join(getCopilotSessionPath(), entry.name)
-      const projectPath = await resolveCopilotProjectPath(sessionPath)
-      if (!projectPath) continue
-
+    for (const discovery of discoveries) {
+      const { projectPath, sessionPath, lastUpdated } = discovery
       const projectId = pathToClaudeDirName(projectPath)
-      let lastUpdated = null
-      try {
-        const sessionFile = await resolveSessionFilePath(sessionPath)
-        lastUpdated = (await fs.stat(sessionFile)).mtime
-      } catch (e) {
-        lastUpdated = (await fs.stat(sessionPath)).mtime
-      }
 
       if (!projectMap.has(projectId)) {
         projectMap.set(projectId, {
@@ -516,7 +414,7 @@ async function getCopilotProjects() {
       }
 
       const project = projectMap.get(projectId)
-      project.sessions.push(entry.name)
+      project.sessions.push(sessionPath)
 
       if (lastUpdated > project.lastUpdated) {
         project.lastUpdated = lastUpdated
@@ -659,10 +557,10 @@ async function getProjects() {
 /**
  * Parse a Copilot session directory and extract session metadata
  */
-async function parseCopilotSession(sessionDir) {
+async function parseCopilotSession(sessionDir, discovery = null) {
   try {
-    const eventsPath = await resolveSessionFilePath(sessionDir)
-    const stats = await fs.stat(eventsPath)
+    const eventsPath = discovery?.sessionFilePath || await resolveSessionFilePath(sessionDir)
+    const stats = discovery?.lastUpdated ? { mtime: discovery.lastUpdated } : await fs.stat(eventsPath)
 
     let content
     try {
@@ -672,8 +570,9 @@ async function parseCopilotSession(sessionDir) {
     }
 
     const lines = content.trim().split('\n')
-    const sessionStat = await fs.stat(sessionDir)
-    const workspace = sessionStat.isDirectory() ? await readCopilotWorkspace(sessionDir) : null
+    const workspace = discovery?.workspace !== undefined
+      ? discovery.workspace
+      : ((await fs.stat(sessionDir)).isDirectory() ? await readCopilotWorkspace(sessionDir) : null)
 
     let startTime, endTime
     let messageCount = 0
@@ -752,21 +651,14 @@ async function getCopilotSessions(projectId) {
   const sessions = []
 
   try {
-    const entries = await fs.readdir(getCopilotSessionPath(), { withFileTypes: true })
+    const discoveries = await discoverCopilotWorkspaces()
 
-    for (const entry of entries) {
-      const isLegacyFile = entry.isFile() && path.extname(entry.name).toLowerCase() === '.jsonl'
-      if (!entry.isDirectory() && !isLegacyFile) continue
-
-      const sessionPath = path.join(getCopilotSessionPath(), entry.name)
-      const projectPath = await resolveCopilotProjectPath(sessionPath)
-      if (!projectPath) continue
-
-      const sessionProjectId = pathToClaudeDirName(projectPath)
+    for (const discovery of discoveries) {
+      const sessionProjectId = pathToClaudeDirName(discovery.projectPath)
 
       // Only include sessions for the requested project
       if (sessionProjectId === projectId) {
-        const session = await parseCopilotSession(sessionPath)
+        const session = await parseCopilotSession(discovery.sessionPath, discovery)
         if (session && session.messageCount >= 3) {
           sessions.push(session)
         }
@@ -2088,6 +1980,7 @@ async function deleteSession(filePath) {
     } else {
       await fs.unlink(filePath)
     }
+    clearCopilotDiscoveryCache()
   } catch (err) {
     throw new Error('Failed to delete session file: ' + err.message)
   }

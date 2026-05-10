@@ -111,7 +111,9 @@ export default {
       return this.allMessages.filter(message => this.shouldRenderMessage(message))
     }
   },
-  async mounted() { await this.load() },
+  beforeUnmount() {
+    this.cleanupEventSource()
+  },
   watch: {
     file: { immediate: true, handler() { this.load() } },
     highlightUserId: {
