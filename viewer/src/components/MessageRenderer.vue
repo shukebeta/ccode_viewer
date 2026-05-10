@@ -16,6 +16,16 @@ import '../../../shared/messageContent.js'
 // Configure marked to disable deprecated mangle option
 marked.setOptions({ mangle: false, headerIds: false })
 
+// Default renderer to intercept mermaid fences in bare marked.parse() calls
+const _defaultRenderer = new marked.Renderer()
+_defaultRenderer.code = (code, language) => {
+  if ((language || '').toLowerCase() === 'mermaid') {
+    return `<div class="__mermaid_placeholder" data-raw="${escapeAttribute(code)}"></div>\n`
+  }
+  return `<pre><code>${code}</code></pre>\n`
+}
+marked.use({ renderer: _defaultRenderer })
+
 const messageContentUtils = globalThis.__ccodeViewerMessageContentUtils
 
 if (!messageContentUtils) {
@@ -57,6 +67,10 @@ function renderCollapsibleBlock(innerHtml, { sourceText, lines = DEFAULT_COLLAPS
 
 function renderCodePlaceholder(raw, language = '') {
   return `<div class="__code_placeholder" data-lang="${escapeAttribute(language)}" data-raw="${escapeAttribute(raw)}" data-collapsed-lines="${DEFAULT_COLLAPSED_LINES}" data-min-lines="${MIN_COLLAPSIBLE_LINES}"></div>`
+}
+
+function mermaidPlaceholder(code) {
+  return `<div class="__mermaid_placeholder" data-raw="${escapeAttribute(code)}"></div>`
 }
 
 
@@ -409,6 +423,9 @@ function createCustomMarkdownRenderer() {
   }
 
   renderer.code = (code, language) => {
+    if ((language || '').toLowerCase() === 'mermaid') {
+      return mermaidPlaceholder(code) + '\n'
+    }
     return `<pre style="margin:0.1rem 0;background:rgba(0,0,0,0.05);padding:6px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em;line-height:1.3">${code}</code></pre>\n`
   }
   
@@ -889,6 +906,23 @@ async function replaceCodeBlocks() {
   }
 }
 
+async function replaceMermaidBlocks() {
+  const root = rootRef.value
+  if (!root) return
+
+  try {
+    const { default: MermaidBlock } = await import('./MermaidBlock.vue')
+    root.querySelectorAll('.__mermaid_placeholder').forEach((ph) => {
+      const code = ph.getAttribute('data-raw') || ''
+      const mount = document.createElement('div')
+      ph.parentNode?.replaceChild(mount, ph)
+      try {
+        createApp(MermaidBlock, { code }).mount(mount)
+      } catch (e) { /* ignore */ }
+    })
+  } catch (e) { /* ignore */ }
+}
+
 async function replaceImages() {
   const root = rootRef.value
   if (!root) return
@@ -929,6 +963,7 @@ async function enhanceDynamicContent() {
   await nextTick()
   await replaceCodeBlocks()
   await replaceImages()
+  await replaceMermaidBlocks()
 }
 
 function handleContentClick(event) {
