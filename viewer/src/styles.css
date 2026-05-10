@@ -90,11 +90,20 @@
 }
 .session-row:hover .delete-btn,
 .session-row:hover .copy-cmd-btn,
+.session-row:focus-within .delete-btn,
+.session-row:focus-within .copy-cmd-btn,
 .copy-cmd-btn.copied { opacity: 1; }
 .delete-btn:hover { background: #b91c1c; }
 .copy-cmd-btn:hover { background: rgba(28, 25, 23, 0.9); }
 .copy-cmd-btn.copied { background: var(--success); color: white; }
 .copy-cmd-btn:hover ~ .delete-btn { opacity: 0; pointer-events: none; }
+
+@media (hover: none), (pointer: coarse) {
+  .delete-btn,
+  .copy-cmd-btn {
+    opacity: 1;
+  }
+}
 
 /* Main session vs agent session */
 .session-card.main-session {

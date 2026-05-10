@@ -138,6 +138,7 @@ export default {
         this.users = cached.users
         this.mapping = cached.mapping
         this.selectedUser = null
+        this.highlightedMessageId = null
         this.loading = false
         this.rebuildAllMessages()
 
@@ -190,6 +191,7 @@ export default {
         }
   this.mapping = cleaned
   this.selectedUser = null
+  this.highlightedMessageId = null
 
         // Cache the processed data
         this.sessionCache.set(this.file, {
