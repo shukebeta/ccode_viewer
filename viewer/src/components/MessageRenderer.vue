@@ -16,13 +16,19 @@ import '../../../shared/messageContent.js'
 // Configure marked to disable deprecated mangle option
 marked.setOptions({ mangle: false, headerIds: false })
 
+function parseMarkdown(source, renderer = null) {
+  const markdown = String(source ?? '')
+  return renderer ? marked.parse(markdown, { renderer }) : marked.parse(markdown)
+}
+
 // Default renderer to intercept mermaid fences in bare marked.parse() calls
 const _defaultRenderer = new marked.Renderer()
+_defaultRenderer.html = (html) => escapeHtml(String(html ?? ''))
 _defaultRenderer.code = (code, language) => {
   if ((language || '').toLowerCase() === 'mermaid') {
     return `<div class="__mermaid_placeholder" data-raw="${escapeAttribute(code)}"></div>\n`
   }
-  return `<pre><code>${code}</code></pre>\n`
+  return `<pre><code>${escapeHtml(code)}</code></pre>\n`
 }
 marked.use({ renderer: _defaultRenderer })
 
@@ -208,7 +214,7 @@ function looksLikeMarkdownText(text) {
 
 function renderMarkdownLikeText(text) {
   const renderer = createCustomMarkdownRenderer()
-  const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
+  const markdownHtml = parseMarkdown(text, renderer)
   const content = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${markdownHtml}</div>`
   return renderCollapsibleBlock(content, { sourceText: text, className: 'markdown-collapsible' })
 }
@@ -217,7 +223,7 @@ function renderSkillContent(text) {
   const renderer = createCustomMarkdownRenderer()
   const summaryText = getSkillContentSummary(text)
   const summary = escapeHtml(summaryText)
-  const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
+  const markdownHtml = parseMarkdown(text, renderer)
   return `<details class="skill-content"><summary class="skill-content-summary" title="${escapeAttribute(summaryText)}">${summary}</summary><div class="skill-content-body">${markdownHtml}</div></details>`
 }
 
@@ -307,7 +313,7 @@ function renderToolResult(c) {
 
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
       // if markdown-like, render full markdown
-      const rendered = marked.parse(escaped)
+      const rendered = parseMarkdown(str)
       return renderCollapsibleBlock(`<div class="tool-result">${rendered}</div>`, { sourceText: str, className: 'tool-result-collapsible' })
     }
 
@@ -322,7 +328,7 @@ function renderThinking(c) {
   }
 
   const renderer = createCustomMarkdownRenderer()
-  const thinkingHtml = marked.parse(escapeHtml(String(thinkingText)), { renderer })
+  const thinkingHtml = parseMarkdown(thinkingText, renderer)
   const thinkingBody = renderCollapsibleBlock(thinkingHtml, { sourceText: thinkingText, className: 'thinking-collapsible' })
   return '<div class="thinking-block"><span class="thinking-placeholder-label">thinking…</span>' + thinkingBody + '</div>'
 }
@@ -392,14 +398,15 @@ function renderImage(c) {
 
 function renderMarkdown(c) {
   const src = (c && (c.text || c.content)) || ''
-  // escape raw HTML before parsing markdown to avoid accidental tag promotion
-  const markdownHtml = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${marked.parse(escapeHtml(String(src)))}</div>`
+  // Parse markdown directly so fenced code stays intact while raw HTML tokens are escaped by the renderer.
+  const markdownHtml = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${parseMarkdown(src)}</div>`
   return renderCollapsibleBlock(markdownHtml, { sourceText: src, className: 'markdown-collapsible' })
 }
 
 // Shared custom markdown renderer with inline styles (for ExitPlanMode and thinking blocks)
 function createCustomMarkdownRenderer() {
   const renderer = new marked.Renderer()
+  renderer.html = (html) => escapeHtml(String(html ?? ''))
     
   renderer.heading = (text, level) => {
     const sizes = ['1.5em', '1.3em', '1.1em']
@@ -426,7 +433,7 @@ function createCustomMarkdownRenderer() {
     if ((language || '').toLowerCase() === 'mermaid') {
       return mermaidPlaceholder(code) + '\n'
     }
-    return `<pre style="margin:0.1rem 0;background:rgba(0,0,0,0.05);padding:6px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em;line-height:1.3">${code}</code></pre>\n`
+    return `<pre style="margin:0.1rem 0;background:rgba(0,0,0,0.05);padding:6px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em;line-height:1.3">${escapeHtml(code)}</code></pre>\n`
   }
   
   return renderer
@@ -441,7 +448,7 @@ function renderTodoWrite(c) {
     const marker = status === 'completed' || status === 'done' || status === 'x' ? '[x]' : (status === 'in_progress' || status === 'doing' || status === 'doing' ? '[-]' : '[ ]')
     return `${marker} ${String(t.content || t.text || t.title || '').trim()}`
   })
-  return marked.parse(lines.join('\n'))
+  return parseMarkdown(lines.join('\n'))
 }
 
 function renderGrepTool(c) {
@@ -518,7 +525,7 @@ function renderWriteTool(c) {
   }
 
   const renderer = createCustomMarkdownRenderer()
-  const markdownHtml = marked.parse(escapeHtml(content), { renderer })
+  const markdownHtml = parseMarkdown(content, renderer)
   const body = renderCollapsibleBlock(`<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div>`, { sourceText: content, className: 'write-markdown-collapsible' })
   return `<div class="write-tool write-tool-markdown">${summary}${body}</div>`
 }
@@ -703,7 +710,7 @@ function contentToHtml(c) {
     if (!plan) return ''
     
     const renderer = createCustomMarkdownRenderer()
-    const planHtml = marked.parse(escapeHtml(String(plan)), { renderer })
+    const planHtml = parseMarkdown(plan, renderer)
     return '<div class="exit-plan-mode">' + planHtml + '</div>'
   }
   // read tool: auto-expand and show code block
@@ -850,9 +857,9 @@ const detailHtml = computed(() => {
   // if it contains a textual content that looks like markdown, use marked
   const text = (c.content || c.text || (c.message && (c.message.content || c.message.text)))
   if (typeof text === 'string' && (text.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(text))) {
-    // escape HTML before parsing
+    // Keep markdown source intact so fenced content (including Mermaid) reaches the renderer unchanged.
     if (isCodeLike(String(text))) return `<pre class="code-block"><code>${escapeHtml(String(text))}</code></pre>`
-    return marked.parse(escapeHtml(String(text)))
+    return parseMarkdown(text)
   }
   return contentToHtml(c)
 })
@@ -910,9 +917,12 @@ async function replaceMermaidBlocks() {
   const root = rootRef.value
   if (!root) return
 
+  const placeholders = Array.from(root.querySelectorAll('.__mermaid_placeholder'))
+  if (placeholders.length === 0) return
+
   try {
     const { default: MermaidBlock } = await import('./MermaidBlock.vue')
-    root.querySelectorAll('.__mermaid_placeholder').forEach((ph) => {
+    placeholders.forEach((ph) => {
       const code = ph.getAttribute('data-raw') || ''
       const mount = document.createElement('div')
       ph.parentNode?.replaceChild(mount, ph)
