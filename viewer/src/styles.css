@@ -3,12 +3,6 @@
    ============================================ */
 
 /* Source badges */
-.source-badges {
-  display: inline-flex;
-  gap: var(--sp-1);
-  margin-left: var(--sp-2);
-}
-
 .source-badge {
   font-family: var(--font-mono);
   font-size: 10px;
