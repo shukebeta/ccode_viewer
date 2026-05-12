@@ -22,7 +22,7 @@ if (!messageContentUtils) {
   throw new Error('messageContent utilities failed to load')
 }
 
-const { extractLeadingSkillPayload, getSkillContentSummary } = messageContentUtils
+const { extractLeadingSkillPayload, extractPlainText, getInlineImageMarkerLabel, getSkillContentSummary, isImageContentBlock } = messageContentUtils
 
 const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true }, disableImagePreview: { type: Boolean, default: false } })
 const rootRef = ref(null)
@@ -31,6 +31,8 @@ const DEFAULT_COLLAPSED_LINES = 4
 const MIN_COLLAPSIBLE_LINES = 6
 const COLLAPSE_LABEL_MORE = 'Show more'
 const COLLAPSE_LABEL_LESS = 'Show less'
+const TOOL_PREVIEW_LENGTH = 140
+const TOOL_DETAIL_PREVIEW_LENGTH = 220
 
 function getLineCount(value) {
   const text = String(value ?? '').replace(/\r\n/g, '\n').trim()
@@ -220,6 +222,8 @@ function renderTextWithSkillPayload(text) {
 
 function renderPlain(c) {
   if (typeof c === 'string') {
+    const imageLabel = getInlineImageMarkerLabel(c)
+    if (imageLabel) return `<span class="image-indicator">${escapeHtml(imageLabel)}</span>`
     const skillHtml = renderTextWithSkillPayload(c)
     if (skillHtml) return skillHtml
     if (looksLikeMarkdownText(c)) return renderMarkdownLikeText(c)
@@ -227,9 +231,11 @@ function renderPlain(c) {
   }
   if (Array.isArray(c)) return c.map(renderPlain).join('<br/>')
   if (c && typeof c === 'object') {
-    if (c.type === 'image') return '<span class="image-indicator">[Image]</span>'
+    if (isImageContentBlock(c)) return renderImage(c)
     const text = typeof c.text === 'string' ? c.text : (typeof c.content === 'string' ? c.content : '')
     if (text) {
+      const imageLabel = getInlineImageMarkerLabel(text)
+      if (imageLabel) return `<span class="image-indicator">${escapeHtml(imageLabel)}</span>`
       const skillHtml = renderTextWithSkillPayload(text)
       if (skillHtml) return skillHtml
       if (looksLikeMarkdownText(text)) return renderMarkdownLikeText(text)
@@ -250,55 +256,116 @@ function renderCode(c) {
   return renderCodePlaceholder(str, language)
 }
 
-function renderToolResult(c) {
-  const v = c ? (c.content ?? c.text ?? '') : ''
+function normalizeInlinePreview(value, maxLength = TOOL_PREVIEW_LENGTH) {
+  const text = extractPlainText(value).replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1).trimEnd()}...` : text
+}
 
-  // Handle empty tool results
-  if (!v || (typeof v === 'string' && v.trim() === '')) {
+function isToolLikeContentBlock(content) {
+  if (!content || typeof content !== 'object') return false
+  if (content.toolUseResult) return true
+
+  const type = content.type || (content.message && content.message.type) || null
+  const toolName = content._copilotToolName || content.toolName || content.name || (content.message && content.message.name) || null
+
+  if (type === 'thinking') return false
+  if (type === 'tool_use' || type === 'tool_result' || type === 'tool' || type === 'status' || type === 'tool_group') return true
+  return Boolean(toolName)
+}
+
+function renderToolGroup(items) {
+  const blocks = (Array.isArray(items) ? items : [items])
+    .map(item => contentToHtml(item))
+    .filter(Boolean)
+
+  if (blocks.length === 0) return ''
+  return `<div class="tool-group">${blocks.map(block => `<div class="tool-group-item">${block}</div>`).join('')}</div>`
+}
+
+function renderContentSequence(items) {
+  if (!Array.isArray(items)) return contentToHtml(items)
+
+  const segments = []
+  let currentKind = null
+  let currentItems = []
+
+  const pushSegment = () => {
+    if (currentItems.length === 0) return
+    segments.push({ kind: currentKind, items: currentItems })
+    currentItems = []
+  }
+
+  for (const item of items) {
+    const kind = isToolLikeContentBlock(item) ? 'tool' : 'content'
+    if (currentKind && kind !== currentKind) pushSegment()
+    currentKind = kind
+    currentItems.push(item)
+  }
+  pushSegment()
+
+  return segments.map(segment => {
+    if (segment.kind === 'tool') return renderToolGroup(segment.items)
+    const inner = segment.items.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
+    return inner ? `<div class="content-group">${inner}</div>` : ''
+  }).filter(Boolean).join('')
+}
+
+function renderToolResultDetail(value) {
+  if (!value || (typeof value === 'string' && value.trim() === '')) {
     return '<div class="empty-tool-result">(no output)</div>'
   }
 
-  if (Array.isArray(v)) {
-    const rendered = v.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
+  if (Array.isArray(value)) {
+    const rendered = value.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
     return rendered || '<div class="empty-tool-result">(no output)</div>'
   }
 
-  if (v && typeof v === 'object') {
-    if (Array.isArray(v.content)) return contentToHtml(v.content)
-    if (typeof v.text === 'string' || typeof v.content === 'string') return contentToHtml(v)
-    if (v.message) return contentToHtml(v.message.content || v.message.text || v.message)
-    if (v.result && v.result.content != null) return contentToHtml(v.result.content)
-    if (v.content && typeof v.content === 'object') return contentToHtml(v.content)
-    return renderJson(v)
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.content)) return renderContentSequence(value.content)
+    if (typeof value.text === 'string' || typeof value.content === 'string') return contentToHtml(value)
+    if (value.message) return contentToHtml(value.message.content || value.message.text || value.message)
+    if (value.result && value.result.content != null) return contentToHtml(value.result.content)
+    if (value.content && typeof value.content === 'object') return contentToHtml(value.content)
+    return renderJson(value)
   }
 
-  // if looks like JSON
   try {
-    const parsed = JSON.parse(v)
+    const parsed = JSON.parse(value)
     return renderCodePlaceholder(JSON.stringify(parsed, null, 2), 'json')
   } catch (e) {
-    // fallback: render as text or markdown
-    const str = String(v)
+    const str = String(value)
     const escaped = escapeHtml(str)
 
-    // Check if contains ANSI codes and render with colors
     if (/\x1b\[/.test(str)) {
       const coloredHtml = ansiToHtml(str)
       return renderCollapsibleBlock('<pre class="tool-result">' + coloredHtml + '</pre>', { sourceText: str, className: 'tool-result-collapsible' })
     }
 
-    if (isCodeLike(str)) {
-      return renderCodePlaceholder(str)
-    }
+    if (isCodeLike(str)) return renderCodePlaceholder(str)
 
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
-      // if markdown-like, render full markdown
       const rendered = marked.parse(escaped)
       return renderCollapsibleBlock(`<div class="tool-result">${rendered}</div>`, { sourceText: str, className: 'tool-result-collapsible' })
     }
 
-    return renderCollapsibleBlock('<pre class="tool-result">' + escaped + '</pre>', { sourceText: str, className: 'tool-result-collapsible' })
+    return `<pre class="tool-result">${escaped}</pre>`
   }
+}
+
+function renderToolResult(c) {
+  const v = c ? (c.content ?? c.text ?? '') : ''
+  const summaryText = normalizeInlinePreview(v, TOOL_DETAIL_PREVIEW_LENGTH) || '(no output)'
+  const detailHtml = renderToolResultDetail(v)
+  const needsDetails = Array.isArray(v)
+    || (v && typeof v === 'object')
+    || (typeof v === 'string' && (v.includes('\n') || v.length > TOOL_PREVIEW_LENGTH || isCodeLike(v) || /^\s*[\[{]/.test(v)))
+
+  if (!needsDetails) {
+    return `<div class="tool-summary tool-summary-result"><span class="tool-summary-label">Result</span><span class="tool-summary-preview">${escapeHtml(summaryText)}</span></div>`
+  }
+
+  return `<details class="tool-detail-shell tool-result-shell"><summary class="tool-summary tool-summary-result"><span class="tool-summary-label">Result</span><span class="tool-summary-preview">${escapeHtml(summaryText)}</span></summary><div class="tool-detail-body">${detailHtml}</div></details>`
 }
 
 function renderThinking(c) {
@@ -340,13 +407,14 @@ function renderAgentResult(c) {
 
   const bodySource = result.content != null ? result.content : c.content
   const bodyHtml = contentToHtml(bodySource)
-  const agentId = result.agentId ? `<div class="agent-result-id">Agent ${escapeHtml(String(result.agentId))}</div>` : ''
+  const agentId = result.agentId ? `Agent ${escapeHtml(String(result.agentId))}` : ''
   const prompt = typeof result.prompt === 'string' ? result.prompt.trim() : ''
-  const promptHtml = prompt
-    ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(prompt)}</pre></details>`
-    : ''
+  const preview = normalizeInlinePreview(bodySource, TOOL_PREVIEW_LENGTH) || normalizeInlinePreview(prompt, TOOL_PREVIEW_LENGTH) || '(no output)'
+  const promptHtml = prompt ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(prompt)}</pre></details>` : ''
+  const meta = badges.map(item => `<span class="agent-result-badge">${escapeHtml(item)}</span>`).join('')
+  const identity = agentId ? `<span class="agent-result-id">${agentId}</span>` : ''
 
-  return `<div class="agent-result"><div class="agent-result-meta">${badges.map(item => `<span class="agent-result-badge">${escapeHtml(item)}</span>`).join('')}</div>${agentId}${promptHtml}<div class="agent-result-body">${bodyHtml || '<div class="empty-tool-result">(no output)</div>'}</div></div>`
+  return `<details class="agent-result tool-detail-shell"><summary class="agent-result-summary"><span class="agent-result-meta">${meta}</span>${identity}<span class="agent-result-preview">${escapeHtml(preview)}</span></summary><div class="tool-detail-body"><div class="agent-result-body">${promptHtml}${bodyHtml || '<div class="empty-tool-result">(no output)</div>'}</div></div></details>`
 }
 
 function renderJson(c) {
@@ -363,7 +431,11 @@ function renderJson(c) {
 function renderImage(c) {
   // Support both direct url/src and nested source.data (base64)
   let src = ''
-  if (c.url || c.src) {
+  if (typeof c.image_url === 'string') {
+    src = c.image_url
+  } else if (c.image_url && typeof c.image_url.url === 'string') {
+    src = c.image_url.url
+  } else if (c.url || c.src) {
     src = c.url || c.src
   } else if (c.source && c.source.type === 'base64' && c.source.data) {
     const mediaType = c.source.media_type || 'image/png'
@@ -489,21 +561,21 @@ function renderWriteTool(c) {
   const filePath = input.file_path || input.filePath || input.path || c.file_path || c.filePath || c.path || msg.file_path || msg.filePath || msg.path || ''
   const rawContent = input.content ?? msg.content ?? ''
   const summaryText = filePath ? `Writing: ${String(filePath)}` : 'Writing file'
-  const summary = `<div class="write-summary">${escapeHtml(summaryText)}</div>`
+  const summary = `<span class="tool-summary-label">Write</span><span class="tool-summary-preview">${escapeHtml(summaryText)}</span>`
 
   if (!isMarkdownFilePath(filePath)) {
-    return `<div class="write-tool">${summary}</div>`
+    return `<div class="write-tool tool-summary tool-summary-write">${summary}</div>`
   }
 
   const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent, null, 2)
   if (!content || !content.trim()) {
-    return `<div class="write-tool write-tool-markdown">${summary}<div class="write-markdown-block"><em>(empty markdown)</em></div></div>`
+    return `<div class="write-tool tool-summary tool-summary-write">${summary}</div>`
   }
 
   const renderer = createCustomMarkdownRenderer()
   const markdownHtml = marked.parse(escapeHtml(content), { renderer })
   const body = renderCollapsibleBlock(`<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div>`, { sourceText: content, className: 'write-markdown-collapsible' })
-  return `<div class="write-tool write-tool-markdown">${summary}${body}</div>`
+  return `<details class="write-tool write-tool-markdown tool-detail-shell"><summary class="tool-summary tool-summary-write">${summary}</summary><div class="tool-detail-body">${body}</div></details>`
 }
 
 // Render Copilot-specific tool blocks that have no Claude Code equivalent
@@ -564,7 +636,8 @@ function renderCopilotTool(c) {
       const promptHtml = promptText
         ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(promptText.substring(0, 500))}</pre></details>`
         : ''
-      return `<div class="agent-result"><div class="agent-result-meta">${badgesHtml}</div>${promptHtml}</div>`
+      const preview = normalizeInlinePreview(promptText, TOOL_PREVIEW_LENGTH) || 'Task queued'
+      return `<details class="agent-result tool-detail-shell"><summary class="agent-result-summary"><span class="agent-result-meta">${badgesHtml}</span><span class="agent-result-preview">${escapeHtml(preview)}</span></summary><div class="tool-detail-body">${promptHtml || '<div class="empty-tool-result">(no prompt)</div>'}</div></details>`
     }
 
     case 'read_agent': {
@@ -640,7 +713,7 @@ function renderCopilotTool(c) {
 }
 
 function contentToHtml(c) {
-  if (Array.isArray(c)) return c.map(contentToHtml).filter(Boolean).join('<br/>')
+  if (Array.isArray(c)) return renderContentSequence(c)
 
   // If it's a plain string, check special cases first (interruptions/commands)
   if (typeof c === 'string') {
@@ -666,6 +739,7 @@ function contentToHtml(c) {
   if (c.toolUseResult) return renderAgentResult(c)
 
   const t = c.type || (c.message && c.message.type) || null
+  if (t === 'tool_group' && Array.isArray(c.items)) return renderToolGroup(c.items)
   // Hide system metadata blocks
   if (t === 'permission-mode' || t === 'last-prompt' || t === 'ai-title' || t === 'skill_listing') return ''
   if (t === 'status') return renderStatus(c)
@@ -758,7 +832,9 @@ function contentToHtml(c) {
     const promptHtml = promptText
       ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(promptText.substring(0, 500))}</pre></details>`
       : ''
-    return `<div class="agent-result"><div class="agent-result-meta">${badgesHtml}</div>${desc ? `<div class="agent-desc">${escapeHtml(desc)}</div>` : ''}${promptHtml}</div>`
+    const preview = normalizeInlinePreview(promptText, TOOL_PREVIEW_LENGTH) || normalizeInlinePreview(desc, TOOL_PREVIEW_LENGTH) || 'Subagent'
+    const descHtml = desc ? `<div class="agent-desc">${escapeHtml(desc)}</div>` : ''
+    return `<details class="agent-result tool-detail-shell"><summary class="agent-result-summary"><span class="agent-result-meta">${badgesHtml}</span><span class="agent-result-preview">${escapeHtml(preview)}</span></summary><div class="tool-detail-body">${descHtml}${promptHtml || '<div class="empty-tool-result">(no prompt)</div>'}</div></details>`
   }
   // Skill tool
   if (c.name === 'Skill' || (c.message && c.message.name === 'Skill')) {
@@ -786,7 +862,7 @@ function contentToHtml(c) {
     const taskId = (c.input && c.input.task_id) || ''
     return `<div class="task-tool-label"><span class="tool-icon">&#128196;</span> Task output: ${escapeHtml(taskId)}</div>`
   }
-  if (t === 'image') return renderImage(c)
+  if (isImageContentBlock(c)) return renderImage(c)
   if (t === 'json' || t === 'object') return renderJson(c)
   if (t === 'markdown') return renderMarkdown(c)
 
@@ -1009,10 +1085,66 @@ const systemNote = computed(() => {
 .json-content { background: var(--bg); padding: var(--sp-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .image-content img { max-width: 100%; height: auto }
 .tool-use { border: none; border-left: 2px solid var(--border-strong); padding: var(--sp-1) var(--sp-2); border-radius: 0; margin-bottom: var(--sp-1); background: transparent; }
-.tool-summary { display:flex; justify-content:space-between; align-items:center }
-.tool-summary .left { flex:1 }
-.tool-summary .meta { color: var(--text-muted); font-size: 12px }
-.tool-detail { margin-top: var(--sp-1); }
+.content-group + .content-group,
+.content-group + .tool-group,
+.tool-group + .content-group,
+.tool-group + .tool-group { margin-top: 4px; }
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tool-group-item {
+  min-width: 0;
+}
+.tool-detail-shell {
+  margin: 0;
+}
+.tool-detail-shell summary {
+  list-style: none;
+}
+.tool-detail-shell summary::-webkit-details-marker {
+  display: none;
+}
+.tool-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.tool-summary-label {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tool-summary-preview {
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-detail-shell > summary.tool-summary,
+.agent-result-summary {
+  cursor: pointer;
+}
+.tool-detail-shell > summary.tool-summary:hover,
+.agent-result-summary:hover {
+  color: var(--text);
+}
+.tool-detail-body {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+}
 .todo-container { border: none; border-left: 2px solid var(--border-strong); padding: var(--sp-1) var(--sp-2); border-radius: 0; background: transparent; }
 .todo-list ul { padding-left: 20px; }
 .system-note { color: var(--text-muted); font-size: 11px; margin-top: var(--sp-1); display: none }
@@ -1020,20 +1152,21 @@ const systemNote = computed(() => {
 .interruption { color: var(--text-muted); font-style: italic; }
 .command-msg { color: var(--text-secondary); font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
 .read-summary {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
   background: transparent;
-  padding: var(--sp-1) var(--sp-2);
+  padding: 2px 0;
   border-radius: 0;
   border: none;
   border-left: 2px solid var(--tool-read);
+  padding-left: var(--sp-2);
   font-family: var(--font-mono);
 }
 .grep-tool {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
   background: transparent;
-  padding: var(--sp-1) var(--sp-2);
+  padding: 2px 0 2px var(--sp-2);
   border-radius: 0;
   border: none;
   border-left: 2px solid var(--tool-grep);
@@ -1043,6 +1176,54 @@ const systemNote = computed(() => {
 }
 .grep-tool .grep-icon { font-size: 14px; }
 .grep-tool .grep-args { font-family: var(--font-mono); font-size: 12px; }
+.write-tool {
+  margin: 0;
+  padding: 0;
+}
+.write-tool.tool-summary {
+  border-left: 2px solid var(--tool-write);
+  padding-left: var(--sp-2);
+}
+.write-tool-markdown > .tool-detail-body {
+  margin-top: 2px;
+}
+.tool-summary-result {
+  border-left: 2px solid rgba(148, 163, 184, 0.3);
+  padding-left: var(--sp-2);
+}
+.agent-result {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.agent-result-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+}
+.agent-result-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+}
+.agent-result-id,
+.agent-result-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.agent-result-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-result-body {
+  padding-left: 0;
+}
 
 /* ensure headings inside message renderer are not too prominent */
 .message-renderer { position: relative }
