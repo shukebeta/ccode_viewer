@@ -253,6 +253,49 @@ describe('mapSessionMessages', () => {
     expect(JSON.stringify(out.mapping[out.users[0].id][0].content)).toContain('assistant answer')
   })
 
+  it('maps Codex input_image blocks without leaking data urls into user previews', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: {
+          id: 'codex-image-test',
+          timestamp: '2026-05-02T00:00:00.000Z',
+          cwd: '/tmp/codex-image-test'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [
+            { type: 'text', text: '<image name=[Image #1]>' },
+            { type: 'input_image', image_url: 'data:image/png;base64,abc123' }
+          ]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'got it' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+
+    expect(out.users).toHaveLength(1)
+    expect(out.users[0].preview).toBe('[Image #1] [Image]')
+    expect(out.users[0].preview).not.toContain('data:image/png')
+    expect(out.mapping[out.users[0].id]).toHaveLength(1)
+    expect(JSON.stringify(out.users[0].content)).toContain('"type":"input_image"')
+  })
+
   it('normalizes Codex exec_command tool calls using exec_command_end output', async () => {
     const { file } = writeTempCodexSession([
       {

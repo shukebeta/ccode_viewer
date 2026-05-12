@@ -1,9 +1,32 @@
 const SKILL_PREFIX = 'Base directory for this skill:'
 const CURRENT_DATETIME_TAG_RE = /<current_datetime>[\s\S]*?<\/current_datetime>\s*/gi
+const INLINE_IMAGE_MARKER_RE = /^\s*<image name=\[(.+?)\]>\s*$/i
 
 function stripCurrentDatetimeTags(text) {
   if (typeof text !== 'string') return ''
   return text.replace(CURRENT_DATETIME_TAG_RE, '').trim()
+}
+
+function getInlineImageMarkerLabel(text) {
+  if (typeof text !== 'string') return ''
+  const match = stripCurrentDatetimeTags(text).match(INLINE_IMAGE_MARKER_RE)
+  if (!match || !match[1]) return ''
+  return `[${match[1].trim()}]`
+}
+
+function isImageContentBlock(content) {
+  if (!content || typeof content !== 'object') return false
+
+  const type = typeof content.type === 'string' ? content.type.toLowerCase() : ''
+  if (type === 'image' || type === 'input_image' || type === 'output_image') return true
+  if (typeof content.image_url === 'string') return true
+  if (content.image_url && typeof content.image_url.url === 'string') return true
+  if (content.source && content.source.type === 'base64' && typeof content.source.data === 'string') {
+    const mediaType = typeof content.source.media_type === 'string' ? content.source.media_type : ''
+    return !mediaType || mediaType.startsWith('image/')
+  }
+
+  return false
 }
 
 function isSkillContentText(text) {
@@ -159,7 +182,7 @@ function isEmptyContent(content) {
   if (typeof content === 'string') return !content.trim()
   if (Array.isArray(content)) return content.length === 0 || content.every(isEmptyContent)
   if (typeof content !== 'object') return false
-  if (content.type === 'image') return false
+  if (isImageContentBlock(content)) return false
   if (typeof content.text === 'string') return !content.text.trim()
   if (typeof content.content === 'string') return !content.content.trim()
   return false
@@ -167,7 +190,7 @@ function isEmptyContent(content) {
 
 function extractPlainText(content) {
   if (content == null) return ''
-  if (typeof content === 'string') return content
+  if (typeof content === 'string') return getInlineImageMarkerLabel(content) || content
   if (Array.isArray(content)) {
     return content
       .map(item => extractPlainText(item))
@@ -180,13 +203,13 @@ function extractPlainText(content) {
     const toolUseResultText = extractPlainText(content.toolUseResult.content)
     if (toolUseResultText) return toolUseResultText
   }
-  if (content.type === 'image') return '[Image]'
+  if (isImageContentBlock(content)) return '[Image]'
   if (content.type === 'thinking') {
     const thinkingText = typeof content.thinking === 'string' ? content.thinking.trim() : ''
     return thinkingText || 'thinking...'
   }
-  if (typeof content.text === 'string') return content.text
-  if (typeof content.content === 'string') return content.content
+  if (typeof content.text === 'string') return getInlineImageMarkerLabel(content.text) || content.text
+  if (typeof content.content === 'string') return getInlineImageMarkerLabel(content.content) || content.content
   if (content.content && typeof content.content === 'object') {
     const nestedContentText = extractPlainText(content.content)
     if (nestedContentText) return nestedContentText
@@ -238,6 +261,8 @@ const messageContentUtils = {
   getUserPreviewText,
   getUserSidebarContent,
   hasUserVisibleContent,
+  getInlineImageMarkerLabel,
+  isImageContentBlock,
   isSkillContentText,
   stripCurrentDatetimeTags
 }

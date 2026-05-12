@@ -1,7 +1,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
-const { extractPlainText, getUserPreviewText } = require('../shared/messageContent')
+const { extractPlainText, getUserPreviewText, isImageContentBlock } = require('../shared/messageContent')
 const {
   readCopilotWorkspace,
   extractCopilotProjectPath,
@@ -1854,13 +1854,13 @@ async function mapSessionMessages(filePath) {
   // Helper: check if content contains image (to avoid expensive stringify)
   const containsImage = (content) => {
     if (!content) return false
+    if (typeof content === 'string') {
+      return content.includes('"type":"image"') || content.includes('"type":"input_image"')
+    }
     if (Array.isArray(content)) {
-      return content.some(item => item && item.type === 'image')
+      return content.some(item => containsImage(item))
     }
-    if (typeof content === 'object' && content.type === 'image') {
-      return true
-    }
-    return false
+    return isImageContentBlock(content)
   }
 
   // Prepare simplified user list (id, preview, timestamp)
@@ -1903,15 +1903,12 @@ async function searchInProject(projectId, keyword) {
           if (!content) return false
           if (typeof content === 'string') {
             // Check if it's stringified JSON containing image
-            if (content.includes('"type":"image"')) return true
+            if (content.includes('"type":"image"') || content.includes('"type":"input_image"')) return true
           }
           if (Array.isArray(content)) {
-            return content.some(item => item && item.type === 'image')
+            return content.some(item => containsImage(item))
           }
-          if (typeof content === 'object' && content.type === 'image') {
-            return true
-          }
-          return false
+          return isImageContentBlock(content)
         }
 
         // Search through user messages
