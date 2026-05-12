@@ -755,6 +755,38 @@ export default {
 .right li { margin-right: 0; }
 pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; margin: 0; }
 
+@media (max-width: 900px) {
+  .two-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .left,
+  .right {
+    width: 100%;
+    margin-right: 0;
+    padding-right: 0;
+    border-right: none;
+  }
+
+  .left {
+    height: auto;
+    max-height: 28vh;
+    border-bottom: 1px solid #d1d5db;
+    padding-bottom: 8px;
+  }
+
+  .right {
+    min-height: 55vh;
+  }
+
+  .left-scroll,
+  .right-scroll {
+    padding-right: 0;
+  }
+}
+
 /* paragraph-style message rhythm */
 .assistant-item {
   position: relative;

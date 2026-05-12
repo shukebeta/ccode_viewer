@@ -604,12 +604,15 @@
 /* Fullscreen <dialog> for mermaid diagrams */
 .mermaid-dialog {
   position: fixed; inset: 0;
-  width: 100%; height: 100%;
-  max-width: 100%; max-height: 100%;
+  width: 100vw; height: 100vh;
+  width: 100dvw; height: 100dvh;
+  max-width: 100vw; max-height: 100vh;
+  max-width: 100dvw; max-height: 100dvh;
   margin: 0; padding: 0;
   background: var(--bg); color: var(--text);
   border: none;
   overflow: hidden;
+  box-sizing: border-box;
 }
 .mermaid-dialog[open] { display: flex; flex-direction: column; }
 .mermaid-dialog::backdrop { background: rgba(0, 0, 0, 0.85); }
@@ -617,9 +620,14 @@
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
   background: var(--card); border-bottom: 1px solid var(--border);
+  pointer-events: none;
+}
+.mermaid-dialog-header > * {
+  pointer-events: auto;
 }
 .mermaid-dialog-title {
   flex: 1; font-size: 12px; color: var(--text-muted);
+  pointer-events: none;
 }
 .mermaid-dialog-close {
   display: inline-flex; align-items: center; justify-content: center;
@@ -628,6 +636,8 @@
   border: 1px solid var(--border); border-radius: 4px;
   font-family: var(--font-mono); font-size: 16px; cursor: pointer;
   transition: color var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast);
+  position: relative;
+  z-index: 1;
 }
 .mermaid-dialog-close:hover {
   color: var(--text); border-color: var(--text-muted); background: var(--bg-subtle);
@@ -646,4 +656,32 @@
 .mermaid-dialog-canvas svg {
   display: block;
   max-width: none; height: auto;
+}
+
+@media (max-width: 480px) {
+  .mermaid-dialog-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title close'
+      'toolbar toolbar';
+    align-items: center;
+    row-gap: 8px;
+  }
+
+  .mermaid-dialog-title {
+    grid-area: title;
+    flex: none;
+  }
+
+  .mermaid-dialog-header .mermaid-toolbar {
+    grid-area: toolbar;
+    margin: 0;
+    justify-self: start;
+  }
+
+  .mermaid-dialog-close {
+    grid-area: close;
+    margin-left: 0;
+  }
 }

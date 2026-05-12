@@ -17,7 +17,7 @@
         @projects-loaded="onProjectsLoaded"
       />
     </div>
-    <div class="layout">
+    <div class="layout" :class="{ 'layout--session-active': mobileShowConversation }">
       <div class="sessions-panel" v-if="project">
         <Sessions
           :project="project"
@@ -44,6 +44,11 @@
         </Sessions>
       </div>
       <main class="main-panel">
+        <div v-if="sessionFile" class="mobile-session-actions">
+          <button type="button" class="mobile-back-btn" @click="showSessionList">
+            Back to sessions
+          </button>
+        </div>
         <TwoColumnViewer v-if="sessionFile" :file="sessionFile" :highlightUserId="highlightUserId" />
         <div v-else class="placeholder">
           {{ project ? 'Select a session to view' : 'Select a project to start' }}
@@ -75,10 +80,26 @@ export default {
       searchLoading: false,
       highlightUserId: null,
       hasResolvedInitialProjectSelection: false,
-      pendingInitialSessionSelection: false
+      pendingInitialSessionSelection: false,
+      isCompactViewport: false,
+      mobileShowConversation: false
     }
   },
   mounted() {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this._compactViewportQuery = window.matchMedia('(max-width: 900px)')
+      this._handleViewportChange = (event) => {
+        this.isCompactViewport = !!event.matches
+        if (!this.isCompactViewport) this.mobileShowConversation = false
+      }
+      this.isCompactViewport = this._compactViewportQuery.matches
+      if (typeof this._compactViewportQuery.addEventListener === 'function') {
+        this._compactViewportQuery.addEventListener('change', this._handleViewportChange)
+      } else if (typeof this._compactViewportQuery.addListener === 'function') {
+        this._compactViewportQuery.addListener(this._handleViewportChange)
+      }
+    }
+
     if (this.isTauri) {
       this._f5Handler = (e) => {
         if (e.key === 'F5') {
@@ -90,6 +111,13 @@ export default {
     }
   },
   beforeUnmount() {
+    if (this._compactViewportQuery && this._handleViewportChange) {
+      if (typeof this._compactViewportQuery.removeEventListener === 'function') {
+        this._compactViewportQuery.removeEventListener('change', this._handleViewportChange)
+      } else if (typeof this._compactViewportQuery.removeListener === 'function') {
+        this._compactViewportQuery.removeListener(this._handleViewportChange)
+      }
+    }
     if (this._f5Handler) {
       document.removeEventListener('keydown', this._f5Handler)
     }
@@ -121,6 +149,7 @@ export default {
       this.sessionFile = null
       this.selectedSession = null
       this.highlightUserId = null
+      this.mobileShowConversation = false
       // Auto-select first session whenever project changes, unless there's an active search
       this.pendingInitialSessionSelection = true
       
@@ -139,6 +168,7 @@ export default {
       if (!currentProjectKey || projectKey !== currentProjectKey) return
 
       this.pendingInitialSessionSelection = false
+      if (this.isCompactViewport) return
 
       if (this.searchQuery || this.sessionFile || !Array.isArray(sessions) || sessions.length === 0) {
         return
@@ -150,6 +180,7 @@ export default {
       this.sessionFile = file
       this.selectedSession = sessionObj || null
       this.highlightUserId = options.highlightFirstUser ? AUTO_SELECT_FIRST_USER_ID : null
+      if (this.isCompactViewport) this.mobileShowConversation = true
     },
     async onSearch(query) {
       this.searchQuery = query
@@ -180,6 +211,11 @@ export default {
       this.highlightUserId = userId
       this.sessionFile = sessionFile
       this.selectedSession = null
+      if (this.isCompactViewport) this.mobileShowConversation = true
+    },
+    showSessionList() {
+      this.mobileShowConversation = false
+      this.highlightUserId = null
     },
     clearSearch() {
       this.searchQuery = ''
@@ -295,5 +331,66 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.mobile-session-actions {
+  display: none;
+}
+
+.mobile-back-btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    padding: var(--sp-2) var(--sp-3);
+    gap: var(--sp-3);
+  }
+
+  .layout {
+    display: block;
+    overflow: auto;
+  }
+
+  .sessions-panel,
+  .main-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sessions-panel {
+    border-right: none;
+  }
+
+  .main-panel {
+    display: none;
+    padding: 0 var(--sp-3) var(--sp-3);
+  }
+
+  .layout.layout--session-active .sessions-panel {
+    display: none;
+  }
+
+  .layout.layout--session-active .main-panel {
+    display: block;
+  }
+
+  .mobile-session-actions {
+    display: flex;
+    justify-content: flex-start;
+    padding: var(--sp-2) 0;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+  }
 }
 </style>
