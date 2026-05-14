@@ -1952,6 +1952,7 @@ async function searchInProject(projectId, keyword) {
             results.push({
               sessionId: session.id,
               sessionFile: session.filePath,
+              source: session.source || null,
               sessionStart: session.startTime,
               userMessage: {
                 id: user.id,

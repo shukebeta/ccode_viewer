@@ -11,6 +11,11 @@ function inferSessionFormat(parsed) {
   return null
 }
 
+function sourceToSessionFormat(source) {
+  if (source === 'codex') return 'codex'
+  return null
+}
+
 function detectSessionFormat(filePath) {
   try {
     const fd = fs.openSync(filePath, 'r')
@@ -48,9 +53,15 @@ function normalizeAppendedLine(parsed, rawLine, sessionFormat) {
   return rawLine
 }
 
-function ensureWatcher(filePath) {
+function ensureWatcher(filePath, source = null) {
   let info = watchers.get(filePath)
-  if (info) return info
+  if (info) {
+    const explicitFormat = sourceToSessionFormat(source)
+    if (explicitFormat && info.sessionFormat !== explicitFormat) {
+      info.sessionFormat = explicitFormat
+    }
+    return info
+  }
 
   const watcher = watch(filePath, {
     persistent: true,
@@ -58,7 +69,7 @@ function ensureWatcher(filePath) {
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
   })
 
-  info = { watcher, subscribers: new Set(), offset: 0, sessionFormat: detectSessionFormat(filePath) }
+  info = { watcher, subscribers: new Set(), offset: 0, sessionFormat: sourceToSessionFormat(source) || detectSessionFormat(filePath) }
 
   // Initialize offset to file size if file exists
   try {
@@ -113,8 +124,8 @@ function ensureWatcher(filePath) {
   return info
 }
 
-function subscribe(filePath, res) {
-  const info = ensureWatcher(filePath)
+function subscribe(filePath, res, source = null) {
+  const info = ensureWatcher(filePath, source)
   info.subscribers.add(res)
   // When client closes, unsubscribe
   const onClose = () => {
@@ -140,6 +151,7 @@ module.exports = {
   _private: {
     detectSessionFormat,
     inferSessionFormat,
+    sourceToSessionFormat,
     normalizeAppendedLine
   }
 }

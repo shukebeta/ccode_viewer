@@ -91,7 +91,7 @@ const TOOL_LIKE_BLOCK_TYPES = new Set(['tool_use', 'tool_result', 'tool', 'statu
 
 export default {
   components: { MessageRenderer, ActionIconButton },
-  props: ['file', 'highlightUserId'],
+  props: ['file', 'sessionSource', 'highlightUserId'],
   data() {
     return {
       users: [],
@@ -117,6 +117,9 @@ export default {
   },
   watch: {
     file: { immediate: true, handler() { this.load() } },
+    sessionSource() {
+      if (this.file) this.setupEventSource()
+    },
     highlightUserId: {
       handler(userId) {
         if (userId && this.visibleUsers.length > 0) {
@@ -228,7 +231,9 @@ export default {
     setupEventSource() {
       this.cleanupEventSource()
       try {
-        this.es = new EventSource('/api/events?file=' + encodeURIComponent(this.file))
+        const params = new URLSearchParams({ file: this.file })
+        if (this.sessionSource) params.set('source', this.sessionSource)
+        this.es = new EventSource('/api/events?' + params.toString())
         this.es.addEventListener('session_appended', (ev) => {
           try {
             const d = JSON.parse(ev.data)

@@ -49,7 +49,12 @@
             Back to sessions
           </button>
         </div>
-        <TwoColumnViewer v-if="sessionFile" :file="sessionFile" :highlightUserId="highlightUserId" />
+        <TwoColumnViewer
+          v-if="sessionFile"
+          :file="sessionFile"
+          :sessionSource="sessionSource"
+          :highlightUserId="highlightUserId"
+        />
         <div v-else class="placeholder">
           {{ project ? 'Select a session to view' : 'Select a project to start' }}
         </div>
@@ -79,6 +84,7 @@ export default {
       searchResults: [],
       searchLoading: false,
       highlightUserId: null,
+      sessionSource: null,
       hasResolvedInitialProjectSelection: false,
       pendingInitialSessionSelection: false,
       isCompactViewport: false,
@@ -148,6 +154,7 @@ export default {
       this.project = p
       this.sessionFile = null
       this.selectedSession = null
+      this.sessionSource = null
       this.highlightUserId = null
       this.mobileShowConversation = false
       // Auto-select first session whenever project changes, unless there's an active search
@@ -179,6 +186,7 @@ export default {
     onSelectSession(file, sessionObj, options = {}) {
       this.sessionFile = file
       this.selectedSession = sessionObj || null
+      this.sessionSource = sessionObj?.source || null
       this.highlightUserId = options.highlightFirstUser ? AUTO_SELECT_FIRST_USER_ID : null
       if (this.isCompactViewport) this.mobileShowConversation = true
     },
@@ -205,12 +213,13 @@ export default {
         this.searchLoading = false
       }
     },
-    onSelectSearchResult({ sessionFile, userId }) {
+    onSelectSearchResult({ sessionFile, source, userId }) {
       // Load the session and highlight the user message
       this.pendingInitialSessionSelection = false
       this.highlightUserId = userId
       this.sessionFile = sessionFile
       this.selectedSession = null
+      this.sessionSource = source || null
       if (this.isCompactViewport) this.mobileShowConversation = true
     },
     showSessionList() {
