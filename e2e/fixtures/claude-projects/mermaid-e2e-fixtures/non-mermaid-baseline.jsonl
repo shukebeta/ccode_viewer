@@ -1,0 +1,6 @@
+{"sessionId":"mermaid-non-mermaid-baseline","timestamp":"2026-05-14T10:20:00.000Z","type":"user","message":{"id":"baseline-user-1","role":"user","content":"MERMAID_TEST:non-mermaid-baseline\nLoad a non-mermaid session."}}
+{"timestamp":"2026-05-14T10:20:01.000Z","type":"assistant","parentUuid":"baseline-user-1","message":{"id":"baseline-assistant-1","role":"assistant","content":"Opening note for a plain markdown session."}}
+{"timestamp":"2026-05-14T10:20:02.000Z","type":"user","message":{"id":"baseline-user-2","role":"user","content":"What is concept 19?"}}
+{"timestamp":"2026-05-14T10:20:03.000Z","type":"assistant","parentUuid":"baseline-user-2","message":{"id":"baseline-assistant-2","role":"assistant","content":"MERMAID_TEST:non-mermaid-baseline concept summary.\n\n- Plain bullet A\n- Plain bullet B"}}
+{"timestamp":"2026-05-14T10:20:04.000Z","type":"assistant","parentUuid":"baseline-user-2","message":{"id":"baseline-assistant-3","role":"assistant","content":"```python\ndef fn_19(value):\n    return value * 2\n```"}}
+{"timestamp":"2026-05-14T10:20:05.000Z","type":"assistant","parentUuid":"baseline-user-2","message":{"id":"baseline-assistant-4","role":"assistant","content":"MERMAID_TEST:non-mermaid-baseline complete"}}

@@ -1,0 +1,3 @@
+{"sessionId":"mermaid-raw-html","timestamp":"2026-05-14T09:30:00.000Z","type":"user","message":{"id":"html-user","role":"user","content":"MERMAID_TEST:raw-html\nShow raw HTML safely."}}
+{"timestamp":"2026-05-14T09:30:01.000Z","type":"assistant","parentUuid":"html-user","message":{"id":"html-assistant-1","role":"assistant","content":"Here is some content with raw HTML:\n\n<div style=\"color:red\">unsafe div</div>\n<script>window.__unsafe_script = true</script>\n<img src=\"x\" onerror=\"window.__unsafe_img = true\" />"}}
+{"timestamp":"2026-05-14T09:30:02.000Z","type":"assistant","parentUuid":"html-user","message":{"id":"html-assistant-2","role":"assistant","content":"MERMAID_TEST:raw-html complete"}}

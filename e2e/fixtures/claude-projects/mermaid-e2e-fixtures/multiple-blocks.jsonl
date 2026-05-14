@@ -1,0 +1,3 @@
+{"sessionId":"mermaid-multiple-blocks","timestamp":"2026-05-14T10:10:00.000Z","type":"user","message":{"id":"multi-user","role":"user","content":"MERMAID_TEST:multiple-blocks\nRender more than one diagram."}}
+{"timestamp":"2026-05-14T10:10:01.000Z","type":"assistant","parentUuid":"multi-user","message":{"id":"multi-assistant-1","role":"assistant","content":"First diagram:\n\n```mermaid\ngraph TD\n  Alpha --> Beta\n```\n\nSecond diagram:\n\n```mermaid\ngraph TD\n  Gamma --> Delta\n```"}}
+{"timestamp":"2026-05-14T10:10:02.000Z","type":"assistant","parentUuid":"multi-user","message":{"id":"multi-assistant-2","role":"assistant","content":"MERMAID_TEST:multiple-blocks complete"}}
