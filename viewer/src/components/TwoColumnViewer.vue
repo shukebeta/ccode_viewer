@@ -87,6 +87,7 @@ const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
 const USER_PREVIEW_TRUNCATION_THRESHOLD = 120
 const HIDDEN_ASSISTANT_BLOCK_TYPES = new Set(['permission-mode', 'last-prompt', 'ai-title', 'skill_listing'])
 const HIDDEN_ASSISTANT_TOOL_NAMES = new Set(['ReportIntent', 'report_intent'])
+const TOOL_LIKE_BLOCK_TYPES = new Set(['tool_use', 'tool_result', 'tool', 'status'])
 
 export default {
   components: { MessageRenderer, ActionIconButton },
@@ -362,35 +363,86 @@ export default {
       }
       return baseContent
     },
-    getRawCopySourceForBlock(raw, block, index) {
-      if (raw && Array.isArray(raw.content) && index < raw.content.length) return raw.content[index]
-      if (raw && raw.message && Array.isArray(raw.message.content) && index < raw.message.content.length) {
-        return raw.message.content[index]
-      }
-      return block
+    getAssistantBlocks(content) {
+      if (Array.isArray(content)) return content.filter(block => block != null)
+      if (content == null || content === '') return []
+      return [content]
     },
-    expandAssistantEntries(message) {
-      const content = message.content || message.preview || (message.raw ? (typeof message.raw === 'string' ? message.raw : JSON.stringify(message.raw)) : '')
+    getRawCopySources(raw) {
+      if (Array.isArray(raw?.content)) return raw.content
+      if (Array.isArray(raw?.message?.content)) return raw.message.content
+      if (raw == null) return []
+      return [raw]
+    },
+    isToolLikeAssistantBlock(content) {
+      if (!content || typeof content !== 'object') return false
+      if (content.toolUseResult) return true
 
-      if (!Array.isArray(content) || content.length <= 1) {
-        return [Object.assign({ displayType: 'assistant', content }, message)]
+      const type = content.type || (content.message && content.message.type) || null
+      const toolName = content._copilotToolName || content.toolName || content.name || (content.message && content.message.name) || null
+
+      if (type === 'thinking') return false
+      if (TOOL_LIKE_BLOCK_TYPES.has(type)) return true
+      return Boolean(toolName)
+    },
+    isToolOnlyAssistantContent(content) {
+      const blocks = this.getAssistantBlocks(content).filter(block => this.hasRenderableAssistantContent(block))
+      return blocks.length > 0 && blocks.every(block => this.isToolLikeAssistantBlock(block))
+    },
+    mergeAssistantContent(baseContent, extraBlocks) {
+      const baseBlocks = this.getAssistantBlocks(baseContent)
+      const merged = [...baseBlocks, ...extraBlocks]
+      if (merged.length === 0) return ''
+      if (merged.length === 1) return merged[0]
+      return merged
+    },
+    mergeRawSources(baseRaw, extraRaw) {
+      const merged = [...this.getRawCopySources(baseRaw), ...this.getRawCopySources(extraRaw)]
+      if (merged.length === 0) return null
+      if (merged.length === 1) return merged[0]
+      return merged
+    },
+    createAssistantEntry(message, contentOverride = undefined, rawOverride = undefined) {
+      const content = contentOverride === undefined
+        ? (message.content || message.preview || (message.raw ? (typeof message.raw === 'string' ? message.raw : JSON.stringify(message.raw)) : ''))
+        : contentOverride
+      const raw = rawOverride === undefined ? message.raw : rawOverride
+
+      return Object.assign({
+        displayType: 'assistant',
+        content,
+        raw,
+        _compactDisplay: this.isToolOnlyAssistantContent(content)
+      }, message)
+    },
+    appendAssistantEntry(out, message) {
+      const content = message.content || message.preview || ''
+      const row = this.createAssistantEntry(message, content, message.raw)
+
+      if (!row._compactDisplay) {
+        out.push(row)
+        return
       }
 
-      return content.map((block, index) => Object.assign({}, message, {
-        id: `${message.id || 'assistant'}__block_${index}`,
-        displayType: 'assistant',
-        content: block,
-        raw: this.getRawCopySourceForBlock(message.raw, block, index),
-        _segmentOf: message.id || null,
-        _segmentIndex: index
-      }))
+      const toolBlocks = this.getAssistantBlocks(content).filter(block => this.hasRenderableAssistantContent(block))
+      if (toolBlocks.length === 0) return
+
+      const previous = out[out.length - 1]
+      if (previous && previous.displayType === 'assistant' && !previous.muted) {
+        previous.content = this.mergeAssistantContent(previous.content, toolBlocks)
+        previous.raw = this.mergeRawSources(previous.raw, message.raw)
+        previous._compactDisplay = this.isToolOnlyAssistantContent(previous.content)
+        return
+      }
+
+      out.push(this.createAssistantEntry(message, { type: 'tool_group', items: toolBlocks }, this.getRawCopySources(message.raw)))
     },
     rebuildAllMessages() {
       const out = []
       // include any orphaned assistant messages first
       if (this.mapping['__no_user__']) {
         for (const a of this.mapping['__no_user__']) {
-          out.push(...this.expandAssistantEntries(a))
+          this.appendAssistantEntry(out, a)
         }
       }
       for (const u of this.users) {
@@ -404,7 +456,7 @@ export default {
         }, u))
         const replies = this.mapping[u.id] || []
         for (const a of replies) {
-          out.push(...this.expandAssistantEntries(a))
+          this.appendAssistantEntry(out, a)
         }
       }
       this.allMessages = out
@@ -426,6 +478,7 @@ export default {
       const toolName = content._copilotToolName || content.toolName || content.name || (content.message && content.message.name) || null
       if (HIDDEN_ASSISTANT_BLOCK_TYPES.has(type)) return false
       if (HIDDEN_ASSISTANT_TOOL_NAMES.has(toolName)) return false
+      if (type === 'tool_group' && Array.isArray(content.items)) return content.items.some(item => this.hasRenderableAssistantContent(item))
       if (type === 'thinking') return Boolean(extractPlainText(content).trim())
 
       const text = this.extractText(content).trim()
@@ -555,6 +608,9 @@ export default {
         if (c.toolUseResult) {
           const toolUseResultText = extractPlainText(c.toolUseResult.content ?? c.content)
           if (toolUseResultText) return toolUseResultText
+        }
+        if (c.type === 'tool_group' && Array.isArray(c.items)) {
+          return c.items.map(item => this.extractText(item)).filter(Boolean).join('\n')
         }
         if (c.text) return c.text
         if (c.content && typeof c.content === 'string') return c.content
@@ -833,7 +889,13 @@ pre { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; ma
   padding-top: 2px;
   padding-bottom: 2px;
 }
+.assistant-item.compact-entry .assistant-card.with-toolbar {
+  padding-right: 42px;
+}
 .assistant-item.compact-entry .assistant-full > .message-renderer { line-height: 1.25; }
+.assistant-item.compact-entry .assistant-toolbar {
+  top: 1px;
+}
 
 .assistant-card .message-renderer {
   line-height: 1.42;

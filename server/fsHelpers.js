@@ -1,7 +1,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
-const { extractPlainText, getUserPreviewText } = require('../shared/messageContent')
+const { extractPlainText, getUserPreviewText, isImageContentBlock } = require('../shared/messageContent')
 const {
   readCopilotWorkspace,
   extractCopilotProjectPath,
@@ -928,7 +928,7 @@ function mapCopilotToolName(name) {
     'edit': 'Edit', 'grep': 'Grep', 'rg': 'Grep', 'glob': 'Glob',
     'report_intent': 'ReportIntent', 'apply_patch': 'ApplyPatch',
     'sql': 'Sql', 'ask_user': 'AskUser', 'task': 'Task',
-    'web_search': 'WebSearch', 'read_agent': 'ReadAgent',
+    'web_search': 'WebSearch', 'web_fetch': 'WebFetch', 'read_agent': 'ReadAgent',
     'skill': 'Skill', 'store_memory': 'StoreMemory'
   }
   return map[name] || name
@@ -973,6 +973,8 @@ function mapCopilotToolInput(toolName, args) {
       return { prompt: args.prompt || '', name: args.name || '', agent_type: args.agent_type || '', description: args.description || '' }
     case 'web_search':
       return { query: args.query || '' }
+    case 'web_fetch':
+      return { url: args.url || '', prompt: args.prompt || '' }
     case 'read_agent':
       return { agent_id: args.agent_id || '' }
     default:
@@ -1105,7 +1107,29 @@ function normalizeCopilotEvents(msgs) {
   return { users, mapping }
 }
 
-function normalizeCodexToolCall(name, args, execCommandEvent) {
+function normalizeCodexToolCall(name, args, execCommandEvent, namespace) {
+  if (name === 'shell_command') {
+    return {
+      name: 'Bash',
+      input: {
+        command: args?.command || '',
+        description: args?.workdir ? `cwd: ${args.workdir}` : ''
+      }
+    }
+  }
+
+  if (typeof namespace === 'string' && namespace.startsWith('mcp__')) {
+    const server = namespace.replace(/^mcp__/, '')
+    const action = (name || '').replace(/^_+/, '')
+    return {
+      name: 'MCPTool',
+      input: typeof args === 'string' ? { raw: args } : (args || {}),
+      _mcpServer: server,
+      _mcpAction: action,
+      _mcpNamespace: namespace
+    }
+  }
+
   if (name === 'exec_command') {
     const parsed = Array.isArray(execCommandEvent?.payload?.parsed_cmd) ? execCommandEvent.payload.parsed_cmd[0] : null
 
@@ -1379,7 +1403,7 @@ function normalizeCodexEvents(msgs) {
 
     if (msg.type === 'response_item' && msg.payload?.type === 'function_call' && msg.payload.call_id) {
       const args = parseCodexArguments(msg.payload.arguments)
-      const normalizedTool = normalizeCodexToolCall(msg.payload.name, args, execCommandEvents.get(msg.payload.call_id))
+      const normalizedTool = normalizeCodexToolCall(msg.payload.name, args, execCommandEvents.get(msg.payload.call_id), msg.payload.namespace)
       if (!normalizedTool) continue
       const content = []
 
@@ -1389,7 +1413,8 @@ function normalizeCodexEvents(msgs) {
           id: msg.payload.call_id,
           name: normalizedTool.name,
           input: normalizedTool.input,
-          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {}),
+          ...(normalizedTool._mcpServer ? { _mcpServer: normalizedTool._mcpServer, _mcpAction: normalizedTool._mcpAction, _mcpNamespace: normalizedTool._mcpNamespace } : {})
         })
       } else if (normalizedTool.text) {
         content.push({ type: 'text', text: normalizedTool.text })
@@ -1436,7 +1461,7 @@ function normalizeCodexEvents(msgs) {
       const toolInput = msg.payload.input || ''
       const content = []
 
-      const normalizedTool = normalizeCodexToolCall(toolName, typeof toolInput === 'string' ? parseCodexArguments(toolInput) : toolInput)
+      const normalizedTool = normalizeCodexToolCall(toolName, typeof toolInput === 'string' ? parseCodexArguments(toolInput) : toolInput, undefined, msg.payload.namespace)
 
       if (normalizedTool.name) {
         content.push({
@@ -1444,7 +1469,8 @@ function normalizeCodexEvents(msgs) {
           id: msg.payload.call_id,
           name: normalizedTool.name,
           input: normalizedTool.input,
-          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {}),
+          ...(normalizedTool._mcpServer ? { _mcpServer: normalizedTool._mcpServer, _mcpAction: normalizedTool._mcpAction, _mcpNamespace: normalizedTool._mcpNamespace } : {})
         })
       } else if (normalizedTool.text) {
         content.push({ type: 'text', text: normalizedTool.text })
@@ -1625,7 +1651,7 @@ function normalizeCodexEvent(msg) {
     if (p.type === 'function_call' || p.type === 'custom_tool_call') {
       const toolName = p.name || 'unknown'
       const args = typeof p.arguments === 'string' ? parseCodexArguments(p.arguments) : (p.input || {})
-      const normalizedTool = normalizeCodexToolCall(toolName, args)
+      const normalizedTool = normalizeCodexToolCall(toolName, args, undefined, p.namespace)
       const content = []
 
       if (normalizedTool?.name) {
@@ -1634,7 +1660,8 @@ function normalizeCodexEvent(msg) {
           id: p.call_id || `tc_${Date.now()}`,
           name: normalizedTool.name,
           input: normalizedTool.input,
-          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {})
+          ...(normalizedTool._copilotToolName ? { _copilotToolName: normalizedTool._copilotToolName } : {}),
+          ...(normalizedTool._mcpServer ? { _mcpServer: normalizedTool._mcpServer, _mcpAction: normalizedTool._mcpAction, _mcpNamespace: normalizedTool._mcpNamespace } : {})
         })
       } else if (normalizedTool?.text) {
         content.push({ type: 'text', text: normalizedTool.text })
@@ -1854,13 +1881,13 @@ async function mapSessionMessages(filePath) {
   // Helper: check if content contains image (to avoid expensive stringify)
   const containsImage = (content) => {
     if (!content) return false
+    if (typeof content === 'string') {
+      return content.includes('"type":"image"') || content.includes('"type":"input_image"')
+    }
     if (Array.isArray(content)) {
-      return content.some(item => item && item.type === 'image')
+      return content.some(item => containsImage(item))
     }
-    if (typeof content === 'object' && content.type === 'image') {
-      return true
-    }
-    return false
+    return isImageContentBlock(content)
   }
 
   // Prepare simplified user list (id, preview, timestamp)
@@ -1903,15 +1930,12 @@ async function searchInProject(projectId, keyword) {
           if (!content) return false
           if (typeof content === 'string') {
             // Check if it's stringified JSON containing image
-            if (content.includes('"type":"image"')) return true
+            if (content.includes('"type":"image"') || content.includes('"type":"input_image"')) return true
           }
           if (Array.isArray(content)) {
-            return content.some(item => item && item.type === 'image')
+            return content.some(item => containsImage(item))
           }
-          if (typeof content === 'object' && content.type === 'image') {
-            return true
-          }
-          return false
+          return isImageContentBlock(content)
         }
 
         // Search through user messages

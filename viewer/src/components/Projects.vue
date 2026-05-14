@@ -6,11 +6,6 @@
         <div :class="['project-card', { active: selected && selected.name === p.name }]" @click="$emit('select-project', p)">
           <div class="project-title">
             {{ displayName(p) }}
-            <span v-if="p.sources && p.sources.length > 1" class="source-badges">
-              <span v-for="src in p.sources" :key="src" :class="['source-badge', src]">
-                {{ sourceLabel(src) }}
-              </span>
-            </span>
           </div>
           <div class="project-path">{{ displayPath(p) }}</div>
           <div class="project-meta">{{ formatSessionCount(p) }}</div>
@@ -21,8 +16,6 @@
 </template>
 
 <script>
-import { SOURCE_LABELS } from '../constants.js'
-
 export default {
   props: { selected: { type: Object, default: null } },
   data() {
@@ -60,9 +53,6 @@ export default {
       if (p.name && (p.name.includes('/') || p.name.includes('\\'))) return p.name.replace(/\\/g, '/')
       if (p.path) return p.path.replace(/\\/g, '/')
       return p.name
-    },
-    sourceLabel(src) {
-      return SOURCE_LABELS[src] || src
     },
     formatSessionCount(p) {
       // Handle new format: { claudecode: 5, gcopilot: 10 }
