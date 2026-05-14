@@ -651,6 +651,18 @@
   border-left: 2px solid var(--tool-plan);
 }
 
+.tool-reference-chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px var(--sp-1);
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
 .task-tool-label {
   font-size: 13px;
   color: var(--text-secondary);

@@ -605,6 +605,58 @@ describe('mapSessionMessages', () => {
     expect(JSON.stringify(toolEntry.content)).toContain('mcp result here')
   })
 
+  it('preserves full MCP namespace details for Codex custom tools', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'mcp-namespace-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'search GitHub prs' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          call_id: 'call_mcp_ns_1',
+          namespace: 'mcp__codex_apps__github',
+          name: '_search_prs',
+          input: { query: 'bugfix' }
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call_mcp_ns_1',
+          output: 'github results'
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const toolEntry = entries.find(e =>
+      Array.isArray(e.content) && e.content.some(c => c.type === 'tool_use')
+    )
+    expect(toolEntry).toBeDefined()
+    expect(JSON.stringify(toolEntry.content)).toContain('"name":"MCPTool"')
+    expect(JSON.stringify(toolEntry.content)).toContain('"query":"bugfix"')
+    expect(JSON.stringify(toolEntry.content)).toContain('"_mcpServer":"codex_apps__github"')
+    expect(JSON.stringify(toolEntry.content)).toContain('"_mcpAction":"search_prs"')
+  })
+
   it('preserves unique Codex agent_message events as assistant text', async () => {
     const { file } = writeTempCodexSession([
       {

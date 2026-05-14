@@ -743,6 +743,11 @@ function contentToHtml(c) {
   // Hide system metadata blocks
   if (t === 'permission-mode' || t === 'last-prompt' || t === 'ai-title' || t === 'skill_listing') return ''
   if (t === 'status') return renderStatus(c)
+  if (t === 'tool_reference') {
+    const toolName = c.tool_name || c.toolName || ''
+    if (!toolName) return ''
+    return `<span class="tool-reference-chip">${escapeHtml(toolName)}</span>`
+  }
   if (t === 'text' || t === 'message' || t === 'paragraph') return renderPlain(c)
   if (t === 'code' || t === 'program' || c.language) return renderCode(c)
   if (t === 'tool_result') return renderToolResult(c)
@@ -811,6 +816,27 @@ function contentToHtml(c) {
   if (c.name === 'WebSearch' || (c.message && c.message.name === 'WebSearch')) {
     const query = (c.input && c.input.query) || (c.input && c.input.prompt) || ''
     return `<div class="copilot-tool-label web-search-tool"><span class="tool-icon">&#128269;</span> Search: "${escapeHtml(query)}"</div>`
+  }
+  // WebFetch tool
+  if (c.name === 'WebFetch' || (c.message && c.message.name === 'WebFetch')) {
+    const url = (c.input && c.input.url) || ''
+    const prompt = (c.input && c.input.prompt) || ''
+    const label = prompt ? `${url} — ${prompt.substring(0, 80)}${prompt.length > 80 ? '…' : ''}` : url
+    return `<div class="copilot-tool-label web-search-tool"><span class="tool-icon">&#127760;</span> Fetch: ${escapeHtml(label)}</div>`
+  }
+  // ToolSearch tool (load deferred tool schemas)
+  if (c.name === 'ToolSearch' || (c.message && c.message.name === 'ToolSearch')) {
+    const query = (c.input && c.input.query) || ''
+    return `<div class="copilot-tool-label"><span class="tool-icon">&#128269;</span> ToolSearch: "${escapeHtml(query)}"</div>`
+  }
+  // MCP tool (generic — server/action label only)
+  if (c.name === 'MCPTool' || c._mcpServer) {
+    const server = c._mcpServer || ''
+    const action = c._mcpAction || c.name || ''
+    const input = c.input || {}
+    const argPreview = normalizeInlinePreview(input.query || input.url || input.repo_id || input.repository_name || '', TOOL_PREVIEW_LENGTH)
+    const argText = argPreview ? ` "${escapeHtml(argPreview)}"` : ''
+    return `<div class="copilot-tool-label"><span class="tool-icon">&#128279;</span> MCP ${escapeHtml(server)}: ${escapeHtml(action)}${argText}</div>`
   }
   // AskUserQuestion tool
   if (c.name === 'AskUserQuestion' || (c.message && c.message.name === 'AskUserQuestion')) {

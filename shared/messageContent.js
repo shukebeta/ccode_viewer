@@ -208,6 +208,10 @@ function extractPlainText(content) {
     const thinkingText = typeof content.thinking === 'string' ? content.thinking.trim() : ''
     return thinkingText || 'thinking...'
   }
+  if (content.type === 'tool_reference') {
+    const refName = typeof content.tool_name === 'string' ? content.tool_name : (typeof content.toolName === 'string' ? content.toolName : '')
+    return refName ? `Loaded: ${refName}` : ''
+  }
   if (typeof content.text === 'string') return getInlineImageMarkerLabel(content.text) || content.text
   if (typeof content.content === 'string') return getInlineImageMarkerLabel(content.content) || content.content
   if (content.content && typeof content.content === 'object') {
