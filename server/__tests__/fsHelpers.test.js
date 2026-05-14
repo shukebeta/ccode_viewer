@@ -253,6 +253,49 @@ describe('mapSessionMessages', () => {
     expect(JSON.stringify(out.mapping[out.users[0].id][0].content)).toContain('assistant answer')
   })
 
+  it('maps Codex input_image blocks without leaking data urls into user previews', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: {
+          id: 'codex-image-test',
+          timestamp: '2026-05-02T00:00:00.000Z',
+          cwd: '/tmp/codex-image-test'
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [
+            { type: 'text', text: '<image name=[Image #1]>' },
+            { type: 'input_image', image_url: 'data:image/png;base64,abc123' }
+          ]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'got it' }]
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+
+    expect(out.users).toHaveLength(1)
+    expect(out.users[0].preview).toBe('[Image #1] [Image]')
+    expect(out.users[0].preview).not.toContain('data:image/png')
+    expect(out.mapping[out.users[0].id]).toHaveLength(1)
+    expect(JSON.stringify(out.users[0].content)).toContain('"type":"input_image"')
+  })
+
   it('normalizes Codex exec_command tool calls using exec_command_end output', async () => {
     const { file } = writeTempCodexSession([
       {
@@ -560,6 +603,58 @@ describe('mapSessionMessages', () => {
     expect(toolEntry).toBeDefined()
     expect(JSON.stringify(toolEntry.content)).toContain('"name":"my_mcp_tool"')
     expect(JSON.stringify(toolEntry.content)).toContain('mcp result here')
+  })
+
+  it('preserves full MCP namespace details for Codex custom tools', async () => {
+    const { file } = writeTempCodexSession([
+      {
+        timestamp: '2026-05-02T00:00:00.000Z',
+        type: 'session_meta',
+        payload: { id: 'mcp-namespace-test', timestamp: '2026-05-02T00:00:00.000Z', cwd: '/tmp/test' }
+      },
+      {
+        timestamp: '2026-05-02T00:00:01.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'search GitHub prs' }]
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:02.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          call_id: 'call_mcp_ns_1',
+          namespace: 'mcp__codex_apps__github',
+          name: '_search_prs',
+          input: { query: 'bugfix' }
+        }
+      },
+      {
+        timestamp: '2026-05-02T00:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'call_mcp_ns_1',
+          output: 'github results'
+        }
+      }
+    ])
+
+    const out = await mapSessionMessages(file)
+    const userId = out.users[0].id
+    const entries = out.mapping[userId]
+
+    const toolEntry = entries.find(e =>
+      Array.isArray(e.content) && e.content.some(c => c.type === 'tool_use')
+    )
+    expect(toolEntry).toBeDefined()
+    expect(JSON.stringify(toolEntry.content)).toContain('"name":"MCPTool"')
+    expect(JSON.stringify(toolEntry.content)).toContain('"query":"bugfix"')
+    expect(JSON.stringify(toolEntry.content)).toContain('"_mcpServer":"codex_apps__github"')
+    expect(JSON.stringify(toolEntry.content)).toContain('"_mcpAction":"search_prs"')
   })
 
   it('preserves unique Codex agent_message events as assistant text', async () => {

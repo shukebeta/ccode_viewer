@@ -73,4 +73,15 @@ describe('messageContent skill handling', () => {
 
     expect(extractPlainText(content)).toBe('这是子 agent 的结果正文。')
   })
+
+  it('treats Codex input_image blocks as images in previews and text extraction', () => {
+    const content = [
+      { type: 'text', text: '<image name=[Image #1]>' },
+      { type: 'input_image', image_url: 'data:image/png;base64,abc123' }
+    ]
+
+    expect(getUserPreviewText(content)).toBe('[Image #1] [Image]')
+    expect(extractPlainText(content)).toBe('[Image #1]\n[Image]')
+    expect(hasUserVisibleContent(content)).toBe(true)
+  })
 })

@@ -45,6 +45,7 @@ export default {
       this.selectedResultId = result.userMessage.id + result.sessionFile
       this.$emit('select-result', {
         sessionFile: result.sessionFile,
+        source: result.source || null,
         userId: result.userMessage.id
       })
     },

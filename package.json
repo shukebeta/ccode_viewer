@@ -7,6 +7,7 @@
     "dev:server": "cd server && npm run dev",
     "dev:viewer": "cd viewer && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:viewer\"",
+    "dev:e2e": "node scripts/run-e2e-dev.mjs",
     "restart": "concurrently --kill-others-on-fail --restart-tries 3 \"npm run dev:server\" \"npm run dev:viewer\"",
     "start:server": "cd server && npm start",
     "start:app": "node server/launcher.js",
@@ -18,7 +19,9 @@
     "package:exe": "node scripts/package-exe.mjs",
     "install:all": "npm install && cd server && npm install && cd ../viewer && npm install",
     "test": "cd server && npm test",
-    "test:server": "pnpm --dir server exec vitest run"
+    "test:server": "pnpm --dir server exec vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "repository": {
     "type": "git",
@@ -33,6 +36,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tauri-apps/cli": "^2.10.1",
     "concurrently": "^9.2.1"
   }

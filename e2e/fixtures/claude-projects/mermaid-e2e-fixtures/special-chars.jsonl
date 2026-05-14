@@ -1,0 +1,3 @@
+{"sessionId":"mermaid-special-chars","timestamp":"2026-05-14T09:10:00.000Z","type":"user","message":{"id":"chars-user","role":"user","content":"MERMAID_TEST:special-chars\nRender labels with <, > and &."}}
+{"timestamp":"2026-05-14T09:10:01.000Z","type":"assistant","parentUuid":"chars-user","message":{"id":"chars-assistant-1","role":"assistant","content":"```mermaid\ngraph TD\n  A[\"1 < 2\"] --> B[\"x & y\"]\n  B --> C[\"3 > 1\"]\n```"}}
+{"timestamp":"2026-05-14T09:10:02.000Z","type":"assistant","parentUuid":"chars-user","message":{"id":"chars-assistant-2","role":"assistant","content":"MERMAID_TEST:special-chars complete"}}

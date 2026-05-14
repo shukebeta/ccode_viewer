@@ -46,6 +46,7 @@ async function readCopilotWorkspace(sessionDir, deps = {}) {
 
 async function extractCopilotProjectPath(sessionFilePath, deps = {}) {
   const fsModule = deps.fsModule || fs
+  const pathModule = deps.pathModule || path
 
   try {
     const content = await fsModule.readFile(sessionFilePath, 'utf8')
@@ -64,8 +65,8 @@ async function extractCopilotProjectPath(sessionFilePath, deps = {}) {
         if (/^[A-Za-z]:\\/.test(candidatePath) || /^[A-Za-z]:\//.test(candidatePath)) {
           const normalizedWindowsPath = candidatePath.replace(/\\/g, '/')
           const parts = normalizedWindowsPath.split('/')
-          if (parts.length > 4) return parts.slice(0, 4).join('/')
-          return normalizedWindowsPath
+          const projectRoot = parts.length > 4 ? parts.slice(0, 4).join('/') : normalizedWindowsPath
+          return pathModule.normalize(projectRoot)
         }
 
         if (candidatePath.startsWith('/')) {

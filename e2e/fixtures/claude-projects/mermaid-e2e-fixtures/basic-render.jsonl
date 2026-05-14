@@ -1,0 +1,3 @@
+{"sessionId":"mermaid-basic-render","timestamp":"2026-05-14T09:00:00.000Z","type":"user","message":{"id":"basic-user","role":"user","content":"MERMAID_TEST:basic-render\nDraw a simple graph."}}
+{"timestamp":"2026-05-14T09:00:01.000Z","type":"assistant","parentUuid":"basic-user","message":{"id":"basic-assistant-1","role":"assistant","content":"Here's a simple diagram:\n\n```mermaid\nflowchart TD\n  Start --> Process\n  Process --> End\n```"}}
+{"timestamp":"2026-05-14T09:00:02.000Z","type":"assistant","parentUuid":"basic-user","message":{"id":"basic-assistant-2","role":"assistant","content":"MERMAID_TEST:basic-render complete"}}

@@ -77,6 +77,7 @@ function createApp(options = {}) {
   // Server-Sent Events endpoint for session file updates
   app.get('/api/events', async (req, res) => {
     const file = req.query.file
+    const source = typeof req.query.source === 'string' ? req.query.source : null
     if (!file) return res.status(400).json({ error: 'file query required' })
 
     let watchFile
@@ -95,7 +96,7 @@ function createApp(options = {}) {
     // Send a comment to keep connection alive for some proxies
     res.write(': connected\n\n')
 
-    fileWatcher.subscribe(watchFile, res)
+    fileWatcher.subscribe(watchFile, res, source)
 
     // On client close, fileWatcher will remove the subscriber via res.on('close')
   })
