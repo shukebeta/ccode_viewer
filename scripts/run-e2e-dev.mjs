@@ -16,8 +16,8 @@ const env = {
   VITE_API_PROXY_TARGET: 'http://127.0.0.1:4173'
 }
 
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-const child = spawn(npmCommand, ['run', 'dev'], {
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+const child = spawn(pnpmCommand, ['run', 'dev'], {
   cwd: rootDir,
   env,
   stdio: 'inherit'
