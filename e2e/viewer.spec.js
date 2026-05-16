@@ -8,7 +8,8 @@ const SESSIONS = {
   codeBlocks: 'VIEWER_TEST:code-blocks',
   agentPlain: 'VIEWER_TEST:agent-plain',
   searchTarget: 'VIEWER_TEST:search-target',
-  multiTurn: 'VIEWER_TEST:multi-turn'
+  multiTurn: 'VIEWER_TEST:multi-turn',
+  structuredCode: 'VIEWER_TEST:structured-code'
 }
 
 const SEARCH_KEYWORD = 'UNIQUE_SEARCH_TERM_XYZ'
@@ -145,4 +146,12 @@ test('9 - Multi-turn session renders all messages', async ({ page }) => {
   const assistantCards = page.locator('.assistant-card')
   await expect(assistantCards.first()).toBeVisible({ timeout: 15000 })
   await expect.poll(async () => assistantCards.count(), { timeout: 10000 }).toBeGreaterThanOrEqual(6)
+})
+
+test('10 - Structured code block renders via CodeBlock with language class', async ({ page }) => {
+  await openSession(page, PROJECT_NAME, SESSIONS.structuredCode)
+
+  const codeEl = page.locator('pre code[class^="language-"]').first()
+  await expect(codeEl).toBeVisible({ timeout: 15000 })
+  await expect(codeEl).toHaveClass(/language-bash/)
 })
