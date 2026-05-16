@@ -1,0 +1,3 @@
+{"sessionId":"viewer-nav-basic","timestamp":"2026-05-14T11:00:00.000Z","type":"user","message":{"id":"nav-user-1","role":"user","content":"VIEWER_TEST:nav-basic\nOpen a plain conversation."}}
+{"timestamp":"2026-05-14T11:00:01.000Z","type":"assistant","parentUuid":"nav-user-1","message":{"id":"nav-assistant-1","role":"assistant","content":"Plain reply for navigation test."}}
+{"timestamp":"2026-05-14T11:00:02.000Z","type":"assistant","parentUuid":"nav-user-1","message":{"id":"nav-assistant-2","role":"assistant","content":"VIEWER_TEST:nav-basic complete"}}

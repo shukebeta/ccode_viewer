@@ -1,0 +1,3 @@
+{"sessionId":"viewer-agent-plain","timestamp":"2026-05-14T11:20:00.000Z","type":"user","message":{"id":"agent-user-1","role":"user","content":"VIEWER_TEST:agent-plain\nDelegated agent task."}}
+{"timestamp":"2026-05-14T11:20:01.000Z","type":"assistant","parentUuid":"agent-user-1","message":{"id":"agent-assistant-1","role":"assistant","content":"Agent reply 1."}}
+{"timestamp":"2026-05-14T11:20:02.000Z","type":"assistant","parentUuid":"agent-user-1","message":{"id":"agent-assistant-2","role":"assistant","content":"VIEWER_TEST:agent-plain complete"}}

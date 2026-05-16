@@ -1,0 +1,3 @@
+{"sessionId":"viewer-search-target","timestamp":"2026-05-14T11:30:00.000Z","type":"user","message":{"id":"search-user-1","role":"user","content":"VIEWER_TEST:search-target UNIQUE_SEARCH_TERM_XYZ\nLook up the unique term."}}
+{"timestamp":"2026-05-14T11:30:01.000Z","type":"assistant","parentUuid":"search-user-1","message":{"id":"search-assistant-1","role":"assistant","content":"The term UNIQUE_SEARCH_TERM_XYZ is found here in the assistant reply."}}
+{"timestamp":"2026-05-14T11:30:02.000Z","type":"assistant","parentUuid":"search-user-1","message":{"id":"search-assistant-2","role":"assistant","content":"VIEWER_TEST:search-target complete"}}
