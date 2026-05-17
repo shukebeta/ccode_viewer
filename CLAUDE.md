@@ -1,5 +1,25 @@
 # Claude Code Viewer - Project-Specific Development Guidelines
 
+## Multi-Agent Relay Workflow
+
+This project uses a three-agent relay for feature development:
+
+| Role | tmux pane | Responsibility |
+|------|-----------|----------------|
+| Planner | `rewind:0.1` | Turns GitHub issues into `/tmp` plan files |
+| Developer | `rewind:0.0` | Implements plans, commits, writes `/tmp` progress files |
+| Reviewer | `rewind:0.2` | Reviews dev output, writes `/tmp` review files |
+
+**Communication:** agents message each other via `tmux send-keys -t <pane> '<path to /tmp file>' Enter`.
+
+- Plans arrive at the Developer as a `/tmp/*.md` path from pane 0.1.
+- Developer output (what was done, deviations, blockers) goes to the Reviewer as a `/tmp/*.md` path.
+- Review reports go back to the Developer as a `/tmp/*.md` path from pane 0.2.
+
+**Commit style:** conventional commits (`feat:` / `fix:` / `chore:` / `refactor:`). Commit proactively — one logical change per commit, don't batch everything at the end.
+
+**Scope discipline:** don't expand scope beyond the plan. New ideas go into a `/tmp` note sent back to the Planner.
+
 A web-based viewer for browsing and searching Claude Code session history.
 
 ## Project Structure
