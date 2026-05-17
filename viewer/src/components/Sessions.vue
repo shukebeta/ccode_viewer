@@ -19,8 +19,77 @@
             <div class="session-time">
               {{ formatTime(s.lastTime || s.startTime) }}
               <span class="muted">({{ s.messageCount }})</span>
-              <span v-if="s.source && s.source !== 'claudecode'" :class="['source-badge', s.source]">
-                {{ sourceLabel(s.source) }}
+              <span
+                v-if="s.source"
+                :class="['source-badge', 'session-source-badge', s.source]"
+                :title="sourceLabel(s.source)"
+                :aria-label="sourceLabel(s.source)"
+              >
+                <svg
+                  v-if="s.source === 'claudecode'"
+                  class="source-icon"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M8 1.5 9.35 5.1 13 6.45 9.35 7.8 8 11.4 6.65 7.8 3 6.45 6.65 5.1 8 1.5Z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M12.2 10.4 12.8 12 14.4 12.6 12.8 13.2 12.2 14.8 11.6 13.2 10 12.6 11.6 12 12.2 10.4Z"
+                    fill="currentColor"
+                    opacity="0.72"
+                  />
+                </svg>
+                <svg
+                  v-else-if="s.source === 'gcopilot'"
+                  class="source-icon"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5 11.75h6.25A2.75 2.75 0 0 0 14 9V7.25A3.75 3.75 0 0 0 10.25 3.5h-.55A3.25 3.25 0 0 0 3.5 4.55 2.75 2.75 0 0 0 2 7v2a2.75 2.75 0 0 0 3 2.75Z"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M5.75 8h.01M10.25 8h.01M6.5 11.75v1.1M9.5 11.75v1.1"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <svg
+                  v-else-if="s.source === 'codex'"
+                  class="source-icon"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 3.25 2.75 8 6 12.75M10 3.25 13.25 8 10 12.75"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M6.8 13.25h2.4"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span v-else class="source-fallback" aria-hidden="true">
+                  {{ sourceLabel(s.source).slice(0, 1) }}
+                </span>
               </span>
               <span v-if="s.branches && s.branches.length" class="branch-badge">
                 {{ s.branches.length === 1 ? s.branches[0] : s.branches.join(', ') }}
@@ -286,5 +355,27 @@ export default {
   margin-left: var(--sp-1);
   font-weight: 500;
   font-family: var(--font-mono);
+}
+
+.session-source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: var(--sp-1);
+  vertical-align: middle;
+}
+
+.source-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.source-fallback {
+  font-size: 10px;
+  line-height: 1;
 }
 </style>

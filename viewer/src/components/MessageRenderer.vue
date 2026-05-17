@@ -16,13 +16,29 @@ import '../../../shared/messageContent.js'
 // Configure marked to disable deprecated mangle option
 marked.setOptions({ mangle: false, headerIds: false })
 
+function parseMarkdown(source, renderer = null) {
+  const markdown = String(source ?? '')
+  return renderer ? marked.parse(markdown, { renderer }) : marked.parse(markdown)
+}
+
+// Default renderer to intercept mermaid fences in bare marked.parse() calls
+const _defaultRenderer = new marked.Renderer()
+_defaultRenderer.html = (html) => escapeHtml(String(html ?? ''))
+_defaultRenderer.code = (code, language) => {
+  if ((language || '').toLowerCase() === 'mermaid') {
+    return `<div class="__mermaid_placeholder" data-raw="${escapeAttribute(code)}"></div>\n`
+  }
+  return `<pre><code>${escapeHtml(code)}</code></pre>\n`
+}
+marked.use({ renderer: _defaultRenderer })
+
 const messageContentUtils = globalThis.__ccodeViewerMessageContentUtils
 
 if (!messageContentUtils) {
   throw new Error('messageContent utilities failed to load')
 }
 
-const { extractLeadingSkillPayload, getSkillContentSummary } = messageContentUtils
+const { extractLeadingSkillPayload, extractPlainText, getInlineImageMarkerLabel, getSkillContentSummary, isImageContentBlock } = messageContentUtils
 
 const props = defineProps({ content: { type: [Object, Array, String], required: true }, showRawCopy: { type: Boolean, default: true }, disableImagePreview: { type: Boolean, default: false } })
 const rootRef = ref(null)
@@ -31,6 +47,8 @@ const DEFAULT_COLLAPSED_LINES = 4
 const MIN_COLLAPSIBLE_LINES = 6
 const COLLAPSE_LABEL_MORE = 'Show more'
 const COLLAPSE_LABEL_LESS = 'Show less'
+const TOOL_PREVIEW_LENGTH = 140
+const TOOL_DETAIL_PREVIEW_LENGTH = 220
 
 function getLineCount(value) {
   const text = String(value ?? '').replace(/\r\n/g, '\n').trim()
@@ -57,6 +75,10 @@ function renderCollapsibleBlock(innerHtml, { sourceText, lines = DEFAULT_COLLAPS
 
 function renderCodePlaceholder(raw, language = '') {
   return `<div class="__code_placeholder" data-lang="${escapeAttribute(language)}" data-raw="${escapeAttribute(raw)}" data-collapsed-lines="${DEFAULT_COLLAPSED_LINES}" data-min-lines="${MIN_COLLAPSIBLE_LINES}"></div>`
+}
+
+function mermaidPlaceholder(code) {
+  return `<div class="__mermaid_placeholder" data-raw="${escapeAttribute(code)}"></div>`
 }
 
 
@@ -194,7 +216,7 @@ function looksLikeMarkdownText(text) {
 
 function renderMarkdownLikeText(text) {
   const renderer = createCustomMarkdownRenderer()
-  const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
+  const markdownHtml = parseMarkdown(text, renderer)
   const content = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${markdownHtml}</div>`
   return renderCollapsibleBlock(content, { sourceText: text, className: 'markdown-collapsible' })
 }
@@ -203,7 +225,7 @@ function renderSkillContent(text) {
   const renderer = createCustomMarkdownRenderer()
   const summaryText = getSkillContentSummary(text)
   const summary = escapeHtml(summaryText)
-  const markdownHtml = marked.parse(escapeHtml(String(text)), { renderer })
+  const markdownHtml = parseMarkdown(text, renderer)
   return `<details class="skill-content"><summary class="skill-content-summary" title="${escapeAttribute(summaryText)}">${summary}</summary><div class="skill-content-body">${markdownHtml}</div></details>`
 }
 
@@ -220,6 +242,8 @@ function renderTextWithSkillPayload(text) {
 
 function renderPlain(c) {
   if (typeof c === 'string') {
+    const imageLabel = getInlineImageMarkerLabel(c)
+    if (imageLabel) return `<span class="image-indicator">${escapeHtml(imageLabel)}</span>`
     const skillHtml = renderTextWithSkillPayload(c)
     if (skillHtml) return skillHtml
     if (looksLikeMarkdownText(c)) return renderMarkdownLikeText(c)
@@ -227,9 +251,11 @@ function renderPlain(c) {
   }
   if (Array.isArray(c)) return c.map(renderPlain).join('<br/>')
   if (c && typeof c === 'object') {
-    if (c.type === 'image') return '<span class="image-indicator">[Image]</span>'
+    if (isImageContentBlock(c)) return renderImage(c)
     const text = typeof c.text === 'string' ? c.text : (typeof c.content === 'string' ? c.content : '')
     if (text) {
+      const imageLabel = getInlineImageMarkerLabel(text)
+      if (imageLabel) return `<span class="image-indicator">${escapeHtml(imageLabel)}</span>`
       const skillHtml = renderTextWithSkillPayload(text)
       if (skillHtml) return skillHtml
       if (looksLikeMarkdownText(text)) return renderMarkdownLikeText(text)
@@ -250,55 +276,116 @@ function renderCode(c) {
   return renderCodePlaceholder(str, language)
 }
 
-function renderToolResult(c) {
-  const v = c ? (c.content ?? c.text ?? '') : ''
+function normalizeInlinePreview(value, maxLength = TOOL_PREVIEW_LENGTH) {
+  const text = extractPlainText(value).replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1).trimEnd()}...` : text
+}
 
-  // Handle empty tool results
-  if (!v || (typeof v === 'string' && v.trim() === '')) {
+function isToolLikeContentBlock(content) {
+  if (!content || typeof content !== 'object') return false
+  if (content.toolUseResult) return true
+
+  const type = content.type || (content.message && content.message.type) || null
+  const toolName = content._copilotToolName || content.toolName || content.name || (content.message && content.message.name) || null
+
+  if (type === 'thinking') return false
+  if (type === 'tool_use' || type === 'tool_result' || type === 'tool' || type === 'status' || type === 'tool_group') return true
+  return Boolean(toolName)
+}
+
+function renderToolGroup(items) {
+  const blocks = (Array.isArray(items) ? items : [items])
+    .map(item => contentToHtml(item))
+    .filter(Boolean)
+
+  if (blocks.length === 0) return ''
+  return `<div class="tool-group">${blocks.map(block => `<div class="tool-group-item">${block}</div>`).join('')}</div>`
+}
+
+function renderContentSequence(items) {
+  if (!Array.isArray(items)) return contentToHtml(items)
+
+  const segments = []
+  let currentKind = null
+  let currentItems = []
+
+  const pushSegment = () => {
+    if (currentItems.length === 0) return
+    segments.push({ kind: currentKind, items: currentItems })
+    currentItems = []
+  }
+
+  for (const item of items) {
+    const kind = isToolLikeContentBlock(item) ? 'tool' : 'content'
+    if (currentKind && kind !== currentKind) pushSegment()
+    currentKind = kind
+    currentItems.push(item)
+  }
+  pushSegment()
+
+  return segments.map(segment => {
+    if (segment.kind === 'tool') return renderToolGroup(segment.items)
+    const inner = segment.items.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
+    return inner ? `<div class="content-group">${inner}</div>` : ''
+  }).filter(Boolean).join('')
+}
+
+function renderToolResultDetail(value) {
+  if (!value || (typeof value === 'string' && value.trim() === '')) {
     return '<div class="empty-tool-result">(no output)</div>'
   }
 
-  if (Array.isArray(v)) {
-    const rendered = v.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
+  if (Array.isArray(value)) {
+    const rendered = value.map(item => contentToHtml(item)).filter(Boolean).join('<br/>')
     return rendered || '<div class="empty-tool-result">(no output)</div>'
   }
 
-  if (v && typeof v === 'object') {
-    if (Array.isArray(v.content)) return contentToHtml(v.content)
-    if (typeof v.text === 'string' || typeof v.content === 'string') return contentToHtml(v)
-    if (v.message) return contentToHtml(v.message.content || v.message.text || v.message)
-    if (v.result && v.result.content != null) return contentToHtml(v.result.content)
-    if (v.content && typeof v.content === 'object') return contentToHtml(v.content)
-    return renderJson(v)
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.content)) return renderContentSequence(value.content)
+    if (typeof value.text === 'string' || typeof value.content === 'string') return contentToHtml(value)
+    if (value.message) return contentToHtml(value.message.content || value.message.text || value.message)
+    if (value.result && value.result.content != null) return contentToHtml(value.result.content)
+    if (value.content && typeof value.content === 'object') return contentToHtml(value.content)
+    return renderJson(value)
   }
 
-  // if looks like JSON
   try {
-    const parsed = JSON.parse(v)
+    const parsed = JSON.parse(value)
     return renderCodePlaceholder(JSON.stringify(parsed, null, 2), 'json')
   } catch (e) {
-    // fallback: render as text or markdown
-    const str = String(v)
+    const str = String(value)
     const escaped = escapeHtml(str)
 
-    // Check if contains ANSI codes and render with colors
     if (/\x1b\[/.test(str)) {
       const coloredHtml = ansiToHtml(str)
       return renderCollapsibleBlock('<pre class="tool-result">' + coloredHtml + '</pre>', { sourceText: str, className: 'tool-result-collapsible' })
     }
 
-    if (isCodeLike(str)) {
-      return renderCodePlaceholder(str)
-    }
+    if (isCodeLike(str)) return renderCodePlaceholder(str)
 
     if (str.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(str)) {
-      // if markdown-like, render full markdown
-      const rendered = marked.parse(escaped)
+      const rendered = parseMarkdown(str)
       return renderCollapsibleBlock(`<div class="tool-result">${rendered}</div>`, { sourceText: str, className: 'tool-result-collapsible' })
     }
 
-    return renderCollapsibleBlock('<pre class="tool-result">' + escaped + '</pre>', { sourceText: str, className: 'tool-result-collapsible' })
+    return `<pre class="tool-result">${escaped}</pre>`
   }
+}
+
+function renderToolResult(c) {
+  const v = c ? (c.content ?? c.text ?? '') : ''
+  const summaryText = normalizeInlinePreview(v, TOOL_DETAIL_PREVIEW_LENGTH) || '(no output)'
+  const detailHtml = renderToolResultDetail(v)
+  const needsDetails = Array.isArray(v)
+    || (v && typeof v === 'object')
+    || (typeof v === 'string' && (v.includes('\n') || v.length > TOOL_PREVIEW_LENGTH || isCodeLike(v) || /^\s*[\[{]/.test(v)))
+
+  if (!needsDetails) {
+    return `<div class="tool-summary tool-summary-result"><span class="tool-summary-label">Result</span><span class="tool-summary-preview">${escapeHtml(summaryText)}</span></div>`
+  }
+
+  return `<details class="tool-detail-shell tool-result-shell"><summary class="tool-summary tool-summary-result"><span class="tool-summary-label">Result</span><span class="tool-summary-preview">${escapeHtml(summaryText)}</span></summary><div class="tool-detail-body">${detailHtml}</div></details>`
 }
 
 function renderThinking(c) {
@@ -308,7 +395,7 @@ function renderThinking(c) {
   }
 
   const renderer = createCustomMarkdownRenderer()
-  const thinkingHtml = marked.parse(escapeHtml(String(thinkingText)), { renderer })
+  const thinkingHtml = parseMarkdown(thinkingText, renderer)
   const thinkingBody = renderCollapsibleBlock(thinkingHtml, { sourceText: thinkingText, className: 'thinking-collapsible' })
   return '<div class="thinking-block"><span class="thinking-placeholder-label">thinking…</span>' + thinkingBody + '</div>'
 }
@@ -340,13 +427,14 @@ function renderAgentResult(c) {
 
   const bodySource = result.content != null ? result.content : c.content
   const bodyHtml = contentToHtml(bodySource)
-  const agentId = result.agentId ? `<div class="agent-result-id">Agent ${escapeHtml(String(result.agentId))}</div>` : ''
+  const agentId = result.agentId ? `Agent ${escapeHtml(String(result.agentId))}` : ''
   const prompt = typeof result.prompt === 'string' ? result.prompt.trim() : ''
-  const promptHtml = prompt
-    ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(prompt)}</pre></details>`
-    : ''
+  const preview = normalizeInlinePreview(bodySource, TOOL_PREVIEW_LENGTH) || normalizeInlinePreview(prompt, TOOL_PREVIEW_LENGTH) || '(no output)'
+  const promptHtml = prompt ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(prompt)}</pre></details>` : ''
+  const meta = badges.map(item => `<span class="agent-result-badge">${escapeHtml(item)}</span>`).join('')
+  const identity = agentId ? `<span class="agent-result-id">${agentId}</span>` : ''
 
-  return `<div class="agent-result"><div class="agent-result-meta">${badges.map(item => `<span class="agent-result-badge">${escapeHtml(item)}</span>`).join('')}</div>${agentId}${promptHtml}<div class="agent-result-body">${bodyHtml || '<div class="empty-tool-result">(no output)</div>'}</div></div>`
+  return `<details class="agent-result tool-detail-shell"><summary class="agent-result-summary"><span class="agent-result-meta">${meta}</span>${identity}<span class="agent-result-preview">${escapeHtml(preview)}</span></summary><div class="tool-detail-body"><div class="agent-result-body">${promptHtml}${bodyHtml || '<div class="empty-tool-result">(no output)</div>'}</div></div></details>`
 }
 
 function renderJson(c) {
@@ -363,7 +451,11 @@ function renderJson(c) {
 function renderImage(c) {
   // Support both direct url/src and nested source.data (base64)
   let src = ''
-  if (c.url || c.src) {
+  if (typeof c.image_url === 'string') {
+    src = c.image_url
+  } else if (c.image_url && typeof c.image_url.url === 'string') {
+    src = c.image_url.url
+  } else if (c.url || c.src) {
     src = c.url || c.src
   } else if (c.source && c.source.type === 'base64' && c.source.data) {
     const mediaType = c.source.media_type || 'image/png'
@@ -378,14 +470,15 @@ function renderImage(c) {
 
 function renderMarkdown(c) {
   const src = (c && (c.text || c.content)) || ''
-  // escape raw HTML before parsing markdown to avoid accidental tag promotion
-  const markdownHtml = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${marked.parse(escapeHtml(String(src)))}</div>`
+  // Parse markdown directly so fenced code stays intact while raw HTML tokens are escaped by the renderer.
+  const markdownHtml = `<div class="markdown-text" style="white-space:normal;line-height:1.35">${parseMarkdown(src)}</div>`
   return renderCollapsibleBlock(markdownHtml, { sourceText: src, className: 'markdown-collapsible' })
 }
 
 // Shared custom markdown renderer with inline styles (for ExitPlanMode and thinking blocks)
 function createCustomMarkdownRenderer() {
   const renderer = new marked.Renderer()
+  renderer.html = (html) => escapeHtml(String(html ?? ''))
     
   renderer.heading = (text, level) => {
     const sizes = ['1.5em', '1.3em', '1.1em']
@@ -409,7 +502,10 @@ function createCustomMarkdownRenderer() {
   }
 
   renderer.code = (code, language) => {
-    return `<pre style="margin:0.1rem 0;background:rgba(0,0,0,0.05);padding:6px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em;line-height:1.3">${code}</code></pre>\n`
+    if ((language || '').toLowerCase() === 'mermaid') {
+      return mermaidPlaceholder(code) + '\n'
+    }
+    return `<pre style="margin:0.1rem 0;background:rgba(0,0,0,0.05);padding:6px;border-radius:4px"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Courier New',monospace;font-size:0.9em;line-height:1.3">${escapeHtml(code)}</code></pre>\n`
   }
   
   return renderer
@@ -424,7 +520,7 @@ function renderTodoWrite(c) {
     const marker = status === 'completed' || status === 'done' || status === 'x' ? '[x]' : (status === 'in_progress' || status === 'doing' || status === 'doing' ? '[-]' : '[ ]')
     return `${marker} ${String(t.content || t.text || t.title || '').trim()}`
   })
-  return marked.parse(lines.join('\n'))
+  return parseMarkdown(lines.join('\n'))
 }
 
 function renderGrepTool(c) {
@@ -489,21 +585,21 @@ function renderWriteTool(c) {
   const filePath = input.file_path || input.filePath || input.path || c.file_path || c.filePath || c.path || msg.file_path || msg.filePath || msg.path || ''
   const rawContent = input.content ?? msg.content ?? ''
   const summaryText = filePath ? `Writing: ${String(filePath)}` : 'Writing file'
-  const summary = `<div class="write-summary">${escapeHtml(summaryText)}</div>`
+  const summary = `<span class="tool-summary-label">Write</span><span class="tool-summary-preview">${escapeHtml(summaryText)}</span>`
 
   if (!isMarkdownFilePath(filePath)) {
-    return `<div class="write-tool">${summary}</div>`
+    return `<div class="write-tool tool-summary tool-summary-write">${summary}</div>`
   }
 
   const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent, null, 2)
   if (!content || !content.trim()) {
-    return `<div class="write-tool write-tool-markdown">${summary}<div class="write-markdown-block"><em>(empty markdown)</em></div></div>`
+    return `<div class="write-tool tool-summary tool-summary-write">${summary}</div>`
   }
 
   const renderer = createCustomMarkdownRenderer()
-  const markdownHtml = marked.parse(escapeHtml(content), { renderer })
+  const markdownHtml = parseMarkdown(content, renderer)
   const body = renderCollapsibleBlock(`<div class="write-markdown-block" style="white-space:normal;line-height:1.3">${markdownHtml}</div>`, { sourceText: content, className: 'write-markdown-collapsible' })
-  return `<div class="write-tool write-tool-markdown">${summary}${body}</div>`
+  return `<details class="write-tool write-tool-markdown tool-detail-shell"><summary class="tool-summary tool-summary-write">${summary}</summary><div class="tool-detail-body">${body}</div></details>`
 }
 
 // Render Copilot-specific tool blocks that have no Claude Code equivalent
@@ -564,7 +660,8 @@ function renderCopilotTool(c) {
       const promptHtml = promptText
         ? `<details class="agent-result-prompt"><summary>Prompt</summary><pre class="agent-result-prompt-text">${escapeHtml(promptText.substring(0, 500))}</pre></details>`
         : ''
-      return `<div class="agent-result"><div class="agent-result-meta">${badgesHtml}</div>${promptHtml}</div>`
+      const preview = normalizeInlinePreview(promptText, TOOL_PREVIEW_LENGTH) || desc || 'Task queued'
+      return `<details class="agent-result tool-detail-shell"><summary class="agent-result-summary"><span class="agent-result-meta">${badgesHtml}</span><span class="agent-result-preview">${escapeHtml(preview)}</span></summary><div class="tool-detail-body">${desc ? `<div class="agent-desc">${escapeHtml(desc)}</div>` : ''}${promptHtml || '<div class="empty-tool-result">(no prompt)</div>'}</div></details>`
     }
 
     case 'read_agent': {
@@ -640,7 +737,7 @@ function renderCopilotTool(c) {
 }
 
 function contentToHtml(c) {
-  if (Array.isArray(c)) return c.map(contentToHtml).filter(Boolean).join('<br/>')
+  if (Array.isArray(c)) return renderContentSequence(c)
 
   // If it's a plain string, check special cases first (interruptions/commands)
   if (typeof c === 'string') {
@@ -666,9 +763,15 @@ function contentToHtml(c) {
   if (c.toolUseResult) return renderAgentResult(c)
 
   const t = c.type || (c.message && c.message.type) || null
+  if (t === 'tool_group' && Array.isArray(c.items)) return renderToolGroup(c.items)
   // Hide system metadata blocks
   if (t === 'permission-mode' || t === 'last-prompt' || t === 'ai-title' || t === 'skill_listing') return ''
   if (t === 'status') return renderStatus(c)
+  if (t === 'tool_reference') {
+    const toolName = c.tool_name || c.toolName || ''
+    if (!toolName) return ''
+    return `<span class="tool-reference-chip">${escapeHtml(toolName)}</span>`
+  }
   if (t === 'text' || t === 'message' || t === 'paragraph') return renderPlain(c)
   if (t === 'code' || t === 'program' || c.language) return renderCode(c)
   if (t === 'tool_result') return renderToolResult(c)
@@ -686,7 +789,7 @@ function contentToHtml(c) {
     if (!plan) return ''
     
     const renderer = createCustomMarkdownRenderer()
-    const planHtml = marked.parse(escapeHtml(String(plan)), { renderer })
+    const planHtml = parseMarkdown(plan, renderer)
     return '<div class="exit-plan-mode">' + planHtml + '</div>'
   }
   // read tool: auto-expand and show code block
@@ -833,9 +936,9 @@ const detailHtml = computed(() => {
   // if it contains a textual content that looks like markdown, use marked
   const text = (c.content || c.text || (c.message && (c.message.content || c.message.text)))
   if (typeof text === 'string' && (text.includes('\n') || /\[[ x\-]\]|#{1,6} /m.test(text))) {
-    // escape HTML before parsing
+    // Keep markdown source intact so fenced content (including Mermaid) reaches the renderer unchanged.
     if (isCodeLike(String(text))) return `<pre class="code-block"><code>${escapeHtml(String(text))}</code></pre>`
-    return marked.parse(escapeHtml(String(text)))
+    return parseMarkdown(text)
   }
   return contentToHtml(c)
 })
@@ -889,6 +992,26 @@ async function replaceCodeBlocks() {
   }
 }
 
+async function replaceMermaidBlocks() {
+  const root = rootRef.value
+  if (!root) return
+
+  const placeholders = Array.from(root.querySelectorAll('.__mermaid_placeholder'))
+  if (placeholders.length === 0) return
+
+  try {
+    const { default: MermaidBlock } = await import('./MermaidBlock.vue')
+    placeholders.forEach((ph) => {
+      const code = ph.getAttribute('data-raw') || ''
+      const mount = document.createElement('div')
+      ph.parentNode?.replaceChild(mount, ph)
+      try {
+        createApp(MermaidBlock, { code }).mount(mount)
+      } catch (e) { /* ignore */ }
+    })
+  } catch (e) { /* ignore */ }
+}
+
 async function replaceImages() {
   const root = rootRef.value
   if (!root) return
@@ -929,6 +1052,7 @@ async function enhanceDynamicContent() {
   await nextTick()
   await replaceCodeBlocks()
   await replaceImages()
+  await replaceMermaidBlocks()
 }
 
 function handleContentClick(event) {

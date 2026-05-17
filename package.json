@@ -4,21 +4,26 @@
   "private": true,
   "description": "Navigate and explore your AI coding sessions",
   "scripts": {
-    "dev:server": "cd server && npm run dev",
-    "dev:viewer": "cd viewer && npm run dev",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:viewer\"",
-    "restart": "concurrently --kill-others-on-fail --restart-tries 3 \"npm run dev:server\" \"npm run dev:viewer\"",
-    "start:server": "cd server && npm start",
+    "predev": "node scripts/ensure-dev-install.mjs",
+    "dev:server": "pnpm --dir server run dev",
+    "dev:viewer": "pnpm --dir viewer run dev",
+    "dev": "concurrently \"pnpm run dev:server\" \"pnpm run dev:viewer\"",
+    "dev:e2e": "node scripts/run-e2e-dev.mjs",
+    "prerestart": "node scripts/ensure-dev-install.mjs",
+    "restart": "concurrently --kill-others-on-fail --restart-tries 3 \"pnpm run dev:server\" \"pnpm run dev:viewer\"",
+    "start:server": "pnpm --dir server start",
     "start:app": "node server/launcher.js",
-    "build:viewer": "cd viewer && npm run build",
+    "build:viewer": "pnpm --dir viewer build",
     "desktop:prepare": "node scripts/prepare-tauri.mjs",
     "desktop:dev": "pnpm tauri dev",
     "desktop:build": "pnpm tauri build",
     "package:tauri": "pnpm install && pnpm run desktop:build",
     "package:exe": "node scripts/package-exe.mjs",
-    "install:all": "npm install && cd server && npm install && cd ../viewer && npm install",
-    "test": "cd server && npm test",
-    "test:server": "pnpm --dir server exec vitest run"
+    "install:all": "pnpm install --frozen-lockfile && pnpm --dir server install --frozen-lockfile && pnpm --dir viewer install --frozen-lockfile",
+    "test": "pnpm --dir server test",
+    "test:server": "pnpm --dir server exec vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "repository": {
     "type": "git",
@@ -33,6 +38,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tauri-apps/cli": "^2.10.1",
     "concurrently": "^9.2.1"
   }

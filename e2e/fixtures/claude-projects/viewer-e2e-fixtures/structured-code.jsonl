@@ -1,0 +1,3 @@
+{"sessionId":"viewer-structured-code","timestamp":"2026-05-14T11:50:00.000Z","type":"user","message":{"id":"struct-user-1","role":"user","content":"VIEWER_TEST:structured-code\nShow structured code block."}}
+{"timestamp":"2026-05-14T11:50:01.000Z","type":"assistant","parentUuid":"struct-user-1","message":{"id":"struct-assistant-1","role":"assistant","content":[{"type":"text","text":"Structured bash example:"},{"type":"code","language":"bash","code":"echo 'hi from struct-code fixture'"}]}}
+{"timestamp":"2026-05-14T11:50:02.000Z","type":"assistant","parentUuid":"struct-user-1","message":{"id":"struct-assistant-2","role":"assistant","content":"VIEWER_TEST:structured-code complete"}}

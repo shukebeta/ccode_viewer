@@ -1,0 +1,12 @@
+{"sessionId":"viewer-multi-turn","timestamp":"2026-05-14T11:40:00.000Z","type":"user","message":{"id":"multi-user-1","role":"user","content":"Turn 1 user."}}
+{"timestamp":"2026-05-14T11:40:01.000Z","type":"assistant","parentUuid":"multi-user-1","message":{"id":"multi-assistant-1","role":"assistant","content":"Turn 1 assistant."}}
+{"timestamp":"2026-05-14T11:40:02.000Z","type":"user","message":{"id":"multi-user-2","role":"user","content":"Turn 2 user."}}
+{"timestamp":"2026-05-14T11:40:03.000Z","type":"assistant","parentUuid":"multi-user-2","message":{"id":"multi-assistant-2","role":"assistant","content":"Turn 2 assistant."}}
+{"timestamp":"2026-05-14T11:40:04.000Z","type":"user","message":{"id":"multi-user-3","role":"user","content":"Turn 3 user."}}
+{"timestamp":"2026-05-14T11:40:05.000Z","type":"assistant","parentUuid":"multi-user-3","message":{"id":"multi-assistant-3","role":"assistant","content":"Turn 3 assistant."}}
+{"timestamp":"2026-05-14T11:40:06.000Z","type":"user","message":{"id":"multi-user-4","role":"user","content":"Turn 4 user."}}
+{"timestamp":"2026-05-14T11:40:07.000Z","type":"assistant","parentUuid":"multi-user-4","message":{"id":"multi-assistant-4","role":"assistant","content":"Turn 4 assistant."}}
+{"timestamp":"2026-05-14T11:40:08.000Z","type":"user","message":{"id":"multi-user-5","role":"user","content":"Turn 5 user."}}
+{"timestamp":"2026-05-14T11:40:09.000Z","type":"assistant","parentUuid":"multi-user-5","message":{"id":"multi-assistant-5","role":"assistant","content":"Turn 5 assistant."}}
+{"timestamp":"2026-05-14T11:40:10.000Z","type":"user","message":{"id":"multi-user-6","role":"user","content":"u6"}}
+{"timestamp":"2026-05-14T11:40:11.000Z","type":"assistant","parentUuid":"multi-user-6","message":{"id":"multi-assistant-6","role":"assistant","content":"VIEWER_TEST:multi-turn"}}

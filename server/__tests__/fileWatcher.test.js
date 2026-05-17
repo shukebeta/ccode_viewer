@@ -93,6 +93,13 @@ describe('fileWatcher codex normalization', () => {
     }])
   })
 
+  it('maps known session sources to explicit formats', () => {
+    expect(_private.sourceToSessionFormat('codex')).toBe('codex')
+    expect(_private.sourceToSessionFormat('gcopilot')).toBeNull()
+    expect(_private.sourceToSessionFormat('claudecode')).toBeNull()
+    expect(_private.sourceToSessionFormat(null)).toBeNull()
+  })
+
   it('drops generic protocol noise lines before they reach the viewer', () => {
     const rawLine = JSON.stringify({
       timestamp: '2026-05-02T00:00:01.000Z',
