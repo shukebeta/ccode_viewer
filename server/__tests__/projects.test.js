@@ -203,7 +203,10 @@ describe('getSessions', () => {
           payload: {
             id: `codex-session-${suffix}`,
             timestamp: '2026-05-02T00:00:00.000Z',
-            cwd: workspaceCwd
+            cwd: workspaceCwd,
+            git: {
+              branch: `feature/codex-${suffix}`
+            }
           }
         }),
         JSON.stringify({
@@ -250,7 +253,8 @@ describe('getSessions', () => {
     expect(session).toBeDefined()
     expect(session).toMatchObject({
       source: 'codex',
-      filePath: path.join(sessionDir, `rollout-${suffix}.jsonl`)
+      filePath: path.join(sessionDir, `rollout-${suffix}.jsonl`),
+      branches: [`feature/codex-${suffix}`]
     })
     expect(session.preview).toContain('real codex question')
     expect(session.preview).not.toContain('environment_context')

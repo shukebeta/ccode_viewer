@@ -683,6 +683,7 @@ async function parseCodexSession(sessionFilePath) {
     let endTime = null
     let messageCount = 0
     const recentMessages = []
+    const branches = new Set()
 
     for (const line of lines) {
       const data = parseJsonLine(line)
@@ -697,6 +698,9 @@ async function parseCodexSession(sessionFilePath) {
       if (data.type === 'session_meta') {
         if (data.payload?.id) sessionId = data.payload.id
         if (typeof data.payload?.cwd === 'string' && data.payload.cwd.trim()) projectPath = data.payload.cwd
+        if (typeof data.payload?.git?.branch === 'string' && data.payload.git.branch.trim()) {
+          branches.add(data.payload.git.branch.trim())
+        }
         if (data.payload?.timestamp) {
           const ts = new Date(data.payload.timestamp)
           if (!startTime || ts < startTime) startTime = ts
@@ -740,7 +744,7 @@ async function parseCodexSession(sessionFilePath) {
       preview: recentMessages.join('\n').substring(0, 200),
       isAgent: false,
       source: 'codex',
-      branches: [],
+      branches: [...branches],
       projectPath
     }
   } catch (e) {
@@ -1306,6 +1310,24 @@ function createStatusBlock(text, kind = 'runtime') {
   return { type: 'status', text: value, kind }
 }
 
+function sanitizeCodexLiveIdPart(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function buildCodexLiveId(prefix, timestamp, detail = '') {
+  const parts = [sanitizeCodexLiveIdPart(prefix)]
+  const tsPart = sanitizeCodexLiveIdPart(timestamp)
+  const detailPart = sanitizeCodexLiveIdPart(detail)
+
+  if (tsPart) parts.push(tsPart)
+  if (detailPart) parts.push(detailPart)
+
+  return parts.filter(Boolean).join('_') || `codex_live_${Date.now()}`
+}
+
 function buildCodexLiveToolResult(callId, resultContent, timestamp, raw) {
   const text = typeof resultContent === 'string'
     ? resultContent.trim()
@@ -1314,6 +1336,7 @@ function buildCodexLiveToolResult(callId, resultContent, timestamp, raw) {
   if (!callId || !text) return null
 
   return {
+    id: buildCodexLiveId('tool_result', timestamp, callId),
     type: 'tool_result',
     parentUuid: callId,
     content: {
@@ -1637,13 +1660,25 @@ function normalizeCodexEvent(msg) {
         const cleanedContent = sanitizeCodexUserContent(p.content)
         const preview = getUserPreviewText(cleanedContent)
         if (!preview) return null
-        return { type: 'user', content: cleanedContent, timestamp: msg.timestamp, raw: msg }
+        return {
+          id: buildCodexLiveId('user', msg.timestamp, preview.slice(0, 48)),
+          type: 'user',
+          content: cleanedContent,
+          timestamp: msg.timestamp,
+          raw: msg
+        }
       }
       if (p.role === 'assistant') {
         const content = normalizeCodexAssistantContent(p.content)
         const text = extractPlainText(content).trim()
         if (!text) return null
-        return { type: 'assistant', content, timestamp: msg.timestamp, raw: msg }
+        return {
+          id: buildCodexLiveId('assistant', msg.timestamp, text.slice(0, 48)),
+          type: 'assistant',
+          content,
+          timestamp: msg.timestamp,
+          raw: msg
+        }
       }
       return null // developer or unknown role
     }
@@ -1674,7 +1709,13 @@ function normalizeCodexEvent(msg) {
         })
       }
 
-      return { type: 'assistant', content, timestamp: msg.timestamp, raw: msg }
+      return {
+        id: p.call_id || buildCodexLiveId('tool_use', msg.timestamp, toolName),
+        type: 'assistant',
+        content,
+        timestamp: msg.timestamp,
+        raw: msg
+      }
     }
 
     if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output') {
@@ -1685,7 +1726,13 @@ function normalizeCodexEvent(msg) {
     if (p.type === 'reasoning') {
       const summary = Array.isArray(p.summary) ? p.summary.filter(Boolean).join('\n').trim() : ''
       if (!summary) return null
-      return { type: 'assistant', content: [{ type: 'thinking', thinking: summary }], timestamp: msg.timestamp, raw: msg }
+      return {
+        id: buildCodexLiveId('reasoning', msg.timestamp, summary.slice(0, 48)),
+        type: 'assistant',
+        content: [{ type: 'thinking', thinking: summary }],
+        timestamp: msg.timestamp,
+        raw: msg
+      }
     }
 
     return null // function_call_output, custom_tool_call_output, etc.
@@ -1712,7 +1759,13 @@ function normalizeCodexEvent(msg) {
     if (p.type === 'agent_message') {
       const text = typeof p.message === 'string' ? p.message.trim() : ''
       if (!text) return null
-      return { type: 'assistant', content: [{ type: 'text', text }], timestamp: msg.timestamp, raw: msg }
+      return {
+        id: buildCodexLiveId('agent_message', msg.timestamp, text.slice(0, 48)),
+        type: 'assistant',
+        content: [{ type: 'text', text }],
+        timestamp: msg.timestamp,
+        raw: msg
+      }
     }
 
     const collabStatus = {
@@ -1724,7 +1777,13 @@ function normalizeCodexEvent(msg) {
     if (collabStatus[p.type]) {
       const statusBlock = createStatusBlock(collabStatus[p.type]())
       if (!statusBlock) return null
-      return { type: 'assistant', content: [statusBlock], timestamp: msg.timestamp, raw: msg }
+      return {
+        id: buildCodexLiveId('status', msg.timestamp, p.type),
+        type: 'assistant',
+        content: [statusBlock],
+        timestamp: msg.timestamp,
+        raw: msg
+      }
     }
 
     return null

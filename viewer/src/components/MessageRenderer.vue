@@ -889,7 +889,7 @@ function contentToHtml(c) {
     const taskId = (c.input && c.input.task_id) || ''
     return `<div class="task-tool-label"><span class="tool-icon">&#128196;</span> Task output: ${escapeHtml(taskId)}</div>`
   }
-  if (t === 'image') return renderImage(c)
+  if (isImageContentBlock(c)) return renderImage(c)
   if (t === 'json' || t === 'object') return renderJson(c)
   if (t === 'markdown') return renderMarkdown(c)
 

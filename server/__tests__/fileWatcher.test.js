@@ -52,6 +52,7 @@ describe('fileWatcher codex normalization', () => {
     expect(normalized).toBeTruthy()
 
     const parsed = JSON.parse(normalized)
+    expect(parsed.id).toBe('tool_result_2026-05-02T00_00_03_000Z_call_read_1')
     expect(parsed.type).toBe('tool_result')
     expect(parsed.parentUuid).toBe('call_read_1')
     expect(parsed.content).toEqual({
@@ -81,6 +82,7 @@ describe('fileWatcher codex normalization', () => {
     expect(normalized).toBeTruthy()
 
     const parsed = JSON.parse(normalized)
+    expect(parsed.id).toBe('call_exec_1')
     expect(parsed.type).toBe('assistant')
     expect(parsed.content).toEqual([{
       type: 'tool_use',
@@ -91,6 +93,26 @@ describe('fileWatcher codex normalization', () => {
         description: 'Read the README'
       }
     }])
+  })
+
+  it('assigns stable ids to live Codex assistant messages', () => {
+    const raw = {
+      timestamp: '2026-05-02T00:00:04.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'agent_message',
+        message: 'Applying patch now'
+      }
+    }
+
+    const normalized = _private.normalizeAppendedLine(raw, JSON.stringify(raw), 'codex')
+
+    expect(normalized).toBeTruthy()
+
+    const parsed = JSON.parse(normalized)
+    expect(parsed.id).toBe('agent_message_2026-05-02T00_00_04_000Z_Applying_patch_now')
+    expect(parsed.type).toBe('assistant')
+    expect(parsed.content).toEqual([{ type: 'text', text: 'Applying patch now' }])
   })
 
   it('maps known session sources to explicit formats', () => {
