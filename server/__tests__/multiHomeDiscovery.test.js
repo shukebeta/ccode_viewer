@@ -191,6 +191,26 @@ describe('multi-home Codex discovery', () => {
   })
 })
 
+describe('env override sentinel does not leak', () => {
+  it('CLAUDE_PROJECTS_PATH override emits no sourceHome on sessions or projects', async () => {
+    const overrideRoot = path.join(tempHome, 'override-projects')
+    fs.mkdirSync(overrideRoot, { recursive: true })
+    process.env.CLAUDE_PROJECTS_PATH = overrideRoot
+
+    const projectId = pathToProjectId('/tmp/multihome-override')
+    makeClaudeSession(overrideRoot, projectId, 'session.jsonl', threeMessageClaudeSession())
+
+    const projects = await getProjects()
+    const project = projects.find((p) => p.id === projectId)
+    expect(project).toBeDefined()
+    expect(project.sourceHomes).toBeUndefined()
+
+    const sessions = await getSessions(projectId)
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0].sourceHome).toBeUndefined()
+  })
+})
+
 describe('multi-home Copilot attribution', () => {
   it('attaches sourceHome on non-canonical Copilot sessions and omits it on canonical', async () => {
     const canonicalRoot = path.join(tempHome, '.copilot', 'session-state')

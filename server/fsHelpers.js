@@ -10,7 +10,7 @@ const {
   discoverCopilotWorkspaces,
   clearCopilotDiscoveryCache
 } = require('./discovery/copilotWorkspaceDiscovery')
-const { discoverAgentHomes } = require('./discovery/agentHomeDiscovery')
+const { discoverAgentHomes, shouldAttributeHome } = require('./discovery/agentHomeDiscovery')
 
 const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
 const CODEX_SESSIONS_PATH = path.join(os.homedir(), '.codex', 'sessions')
@@ -32,13 +32,18 @@ function getCodexSessionsRoots() {
   return discoverAgentHomes({ kind: 'codex' })
 }
 
-function recordSourceHome(project, source, homeName, isCanonical) {
-  if (isCanonical || !homeName) return
+function pushSourceHomeName(project, source, homeName) {
+  if (!homeName) return
   if (!project.sourceHomes) project.sourceHomes = {}
   if (!project.sourceHomes[source]) project.sourceHomes[source] = []
   if (!project.sourceHomes[source].includes(homeName)) {
     project.sourceHomes[source].push(homeName)
   }
+}
+
+function recordSourceHome(project, source, home) {
+  if (!shouldAttributeHome(home)) return
+  pushSourceHomeName(project, source, home.homeName)
 }
 
 // Local copy of resolveProjectPath (ported from electron/pathResolver.ts)
@@ -412,15 +417,15 @@ async function getCodexProjects() {
         projectMap.set(projectId, {
           projectPath,
           sessions: [],
-          sourceHomes: [],
+          _homeNames: [],
           lastUpdated: stats.mtime
         })
       }
 
       const project = projectMap.get(projectId)
       project.sessions.push(filePath)
-      if (!isCanonical && sourceHome && !project.sourceHomes.includes(sourceHome)) {
-        project.sourceHomes.push(sourceHome)
+      if (shouldAttributeHome({ homeName: sourceHome, isCanonical }) && !project._homeNames.includes(sourceHome)) {
+        project._homeNames.push(sourceHome)
       }
       if (stats.mtime > project.lastUpdated) {
         project.lastUpdated = stats.mtime
@@ -451,15 +456,15 @@ async function getCopilotProjects() {
         projectMap.set(projectId, {
           projectPath,
           sessions: [],
-          sourceHomes: [],
+          _homeNames: [],
           lastUpdated
         })
       }
 
       const project = projectMap.get(projectId)
       project.sessions.push(sessionPath)
-      if (!isCanonical && homeName && !project.sourceHomes.includes(homeName)) {
-        project.sourceHomes.push(homeName)
+      if (shouldAttributeHome({ homeName, isCanonical }) && !project._homeNames.includes(homeName)) {
+        project._homeNames.push(homeName)
       }
 
       if (lastUpdated > project.lastUpdated) {
@@ -522,7 +527,7 @@ async function getProjects() {
             },
             lastUpdated: lastUpdated ? lastUpdated.toISOString() : undefined
           })
-          recordSourceHome(projectMap.get(entry.name), 'claudecode', root.homeName, root.isCanonical)
+          recordSourceHome(projectMap.get(entry.name), 'claudecode', root)
           continue
         }
 
@@ -532,7 +537,7 @@ async function getProjects() {
         if (lastUpdated && (!existingDate || lastUpdated > existingDate)) {
           existing.lastUpdated = lastUpdated.toISOString()
         }
-        recordSourceHome(existing, 'claudecode', root.homeName, root.isCanonical)
+        recordSourceHome(existing, 'claudecode', root)
       }
     }
   } catch (e) {
@@ -557,8 +562,8 @@ async function getProjects() {
         if (!existingDate || copilotData.lastUpdated > existingDate) {
           existing.lastUpdated = copilotData.lastUpdated.toISOString()
         }
-        for (const homeName of copilotData.sourceHomes) {
-          recordSourceHome(existing, 'gcopilot', homeName, false)
+        for (const homeName of copilotData._homeNames) {
+          pushSourceHomeName(existing, 'gcopilot', homeName)
         }
       } else {
         const newProject = {
@@ -571,8 +576,8 @@ async function getProjects() {
           },
           lastUpdated: copilotData.lastUpdated.toISOString()
         }
-        for (const homeName of copilotData.sourceHomes) {
-          recordSourceHome(newProject, 'gcopilot', homeName, false)
+        for (const homeName of copilotData._homeNames) {
+          pushSourceHomeName(newProject, 'gcopilot', homeName)
         }
         projectMap.set(projectId, newProject)
       }
@@ -599,8 +604,8 @@ async function getProjects() {
         if (!existingDate || codexData.lastUpdated > existingDate) {
           existing.lastUpdated = codexData.lastUpdated.toISOString()
         }
-        for (const homeName of codexData.sourceHomes) {
-          recordSourceHome(existing, 'codex', homeName, false)
+        for (const homeName of codexData._homeNames) {
+          pushSourceHomeName(existing, 'codex', homeName)
         }
       } else {
         const newProject = {
@@ -613,8 +618,8 @@ async function getProjects() {
           },
           lastUpdated: codexData.lastUpdated.toISOString()
         }
-        for (const homeName of codexData.sourceHomes) {
-          recordSourceHome(newProject, 'codex', homeName, false)
+        for (const homeName of codexData._homeNames) {
+          pushSourceHomeName(newProject, 'codex', homeName)
         }
         projectMap.set(projectId, newProject)
       }
@@ -641,7 +646,7 @@ async function parseCopilotSession(sessionDir, discovery = null) {
   try {
     const eventsPath = discovery?.sessionFilePath || await resolveSessionFilePath(sessionDir)
     const stats = discovery?.lastUpdated ? { mtime: discovery.lastUpdated } : await fs.stat(eventsPath)
-    const attachSourceHome = discovery && !discovery.isCanonical && discovery.homeName
+    const attachSourceHome = shouldAttributeHome(discovery)
 
     let content
     try {
@@ -831,7 +836,7 @@ async function parseCodexSession(sessionFilePath, opts = {}) {
       branches: [...branches],
       projectPath
     }
-    if (!isCanonical && sourceHome) session.sourceHome = sourceHome
+    if (shouldAttributeHome({ homeName: sourceHome, isCanonical })) session.sourceHome = sourceHome
     return session
   } catch (e) {
     return null
@@ -955,7 +960,7 @@ async function collectClaudeSessionsFromDir(projectPath, displayProjectPath, ses
         source: 'claudecode',
         branches: [...branches]
       }
-      if (!isCanonical && sourceHome) session.sourceHome = sourceHome
+      if (shouldAttributeHome({ homeName: sourceHome, isCanonical })) session.sourceHome = sourceHome
       sessions.push(session)
     }
   }

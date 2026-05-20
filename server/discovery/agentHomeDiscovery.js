@@ -3,6 +3,14 @@ const path = require('path')
 const os = require('os')
 
 const DEFAULT_DISCOVERY_CACHE_TTL_MS = 2000
+const OVERRIDE_HOME_NAME = '<override>'
+
+function shouldAttributeHome(home) {
+  if (!home) return false
+  if (home.isCanonical) return false
+  if (home.homeName === OVERRIDE_HOME_NAME) return false
+  return Boolean(home.homeName)
+}
 
 const KIND_CONFIG = {
   claudecode: { prefix: 'claude', subdir: 'projects', envVar: 'CLAUDE_PROJECTS_PATH' },
@@ -49,7 +57,7 @@ async function buildOverrideDiscovery(kind, envValue, fsModule, pathModule) {
   const isSymlink = await safeIsSymlink(fsModule, sessionDir)
   return {
     kind,
-    homeName: '<override>',
+    homeName: OVERRIDE_HOME_NAME,
     homeDir: pathModule.dirname(sessionDir),
     sessionDir,
     realPath,
@@ -169,6 +177,8 @@ async function discoverAgentHomes(options = {}) {
 
 module.exports = {
   DEFAULT_DISCOVERY_CACHE_TTL_MS,
+  OVERRIDE_HOME_NAME,
   discoverAgentHomes,
-  clearAgentHomeDiscoveryCache
+  clearAgentHomeDiscoveryCache,
+  shouldAttributeHome
 }
