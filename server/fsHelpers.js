@@ -1,7 +1,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
-const { detectNoiseWrapper, extractPlainText, getUserPreviewText, isImageContentBlock } = require('../shared/messageContent')
+const { detectNoiseWrapper, extractPlainText, getUserPreviewText, isImageContentBlock, shouldHideRawSessionEvent } = require('../shared/messageContent')
 const {
   readCopilotWorkspace,
   extractCopilotProjectPath,
@@ -1404,27 +1404,6 @@ function getCodexToolResult(callId, functionOutputs, execCommandEvents) {
   } catch (e) {
     return ''
   }
-}
-
-const HIDDEN_RAW_SESSION_EVENT_TYPES = new Set([
-  'assistant.turn_start',
-  'assistant.turn_end',
-  'tool.execution_start',
-  'tool.execution_complete',
-  'hook.start',
-  'hook.end',
-  'session.compaction_start',
-  'session.compaction_end',
-  'session.start',
-  'session.info',
-  'session.model_change',
-  'session.plan_changed',
-  'system.message'
-])
-
-function shouldHideRawSessionEvent(msg) {
-  if (!msg || typeof msg !== 'object') return false
-  return typeof msg.type === 'string' && HIDDEN_RAW_SESSION_EVENT_TYPES.has(msg.type)
 }
 
 function createStatusBlock(text, kind = 'runtime') {

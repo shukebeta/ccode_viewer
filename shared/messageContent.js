@@ -5,6 +5,27 @@ const INLINE_IMAGE_MARKER_RE = /^\s*<image name=\[(.+?)\]>\s*$/i
 const LOCAL_COMMAND_CAVEAT_PREFIX = '<local-command-caveat>'
 const LOCAL_COMMAND_STDOUT_PREFIX = '<local-command-stdout>'
 
+const HIDDEN_RAW_SESSION_EVENT_TYPES = new Set([
+  'assistant.turn_start',
+  'assistant.turn_end',
+  'tool.execution_start',
+  'tool.execution_complete',
+  'hook.start',
+  'hook.end',
+  'session.compaction_start',
+  'session.compaction_end',
+  'session.start',
+  'session.info',
+  'session.model_change',
+  'session.plan_changed',
+  'system.message'
+])
+
+function shouldHideRawSessionEvent(msg) {
+  if (!msg || typeof msg !== 'object') return false
+  return typeof msg.type === 'string' && HIDDEN_RAW_SESSION_EVENT_TYPES.has(msg.type)
+}
+
 function getTopLevelTextPrefix(rawEvent) {
   if (!rawEvent || typeof rawEvent !== 'object') return ''
 
@@ -328,7 +349,9 @@ const messageContentUtils = {
   getInlineImageMarkerLabel,
   isImageContentBlock,
   isSkillContentText,
-  stripCurrentDatetimeTags
+  stripCurrentDatetimeTags,
+  shouldHideRawSessionEvent,
+  HIDDEN_RAW_SESSION_EVENT_TYPES
 }
 
 if (typeof globalThis !== 'undefined') {

@@ -16,6 +16,14 @@
         @select-project="onSelectProject"
         @projects-loaded="onProjectsLoaded"
       />
+      <label class="live-mode-toggle" title="Auto-follow streaming output">
+        <span class="live-mode-toggle-label">Live</span>
+        <el-switch
+          v-model="liveModeEnabled"
+          aria-label="Live"
+          @change="onLiveModeChange"
+        />
+      </label>
     </div>
     <div class="layout" :class="{ 'layout--session-active': mobileShowConversation }">
       <div class="sessions-panel" v-if="project">
@@ -54,6 +62,7 @@
           :file="sessionFile"
           :sessionSource="sessionSource"
           :highlightUserId="highlightUserId"
+          :liveModeEnabled="liveModeEnabled"
         />
         <div v-else class="placeholder">
           {{ project ? 'Select a session to view' : 'Select a project to start' }}
@@ -70,6 +79,17 @@ import SearchBox from './components/SearchBox.vue'
 import SearchResults from './components/SearchResults.vue'
 import TwoColumnViewer from './components/TwoColumnViewer.vue'
 import { AUTO_SELECT_FIRST_USER_ID } from './constants'
+
+const LIVE_MODE_STORAGE_KEY = 'ccode_viewer:liveModeEnabled'
+
+function readLiveModePreference() {
+  if (typeof localStorage === 'undefined') return true
+  try {
+    return localStorage.getItem(LIVE_MODE_STORAGE_KEY) !== 'false'
+  } catch (e) {
+    return true
+  }
+}
 
 export default {
   components: { ProjectSelector, Sessions, SearchBox, SearchResults, TwoColumnViewer },
@@ -88,7 +108,8 @@ export default {
       hasResolvedInitialProjectSelection: false,
       pendingInitialSessionSelection: false,
       isCompactViewport: false,
-      mobileShowConversation: false
+      mobileShowConversation: false,
+      liveModeEnabled: readLiveModePreference()
     }
   },
   mounted() {
@@ -230,6 +251,14 @@ export default {
       this.searchQuery = ''
       this.searchResults = []
       this.highlightUserId = null
+    },
+    onLiveModeChange(value) {
+      if (typeof localStorage === 'undefined') return
+      try {
+        localStorage.setItem(LIVE_MODE_STORAGE_KEY, String(Boolean(value)))
+      } catch (e) {
+        // ignore quota / disabled storage
+      }
     }
     , formatTime(ts) {
       if (!ts) return ''

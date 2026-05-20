@@ -39,7 +39,7 @@
     </div>
     <div class="right">
       <h3 class="column-header">Conversation</h3>
-      <div class="right-scroll" @copy="handleConversationCopy">
+      <div class="right-scroll" ref="rightScroll" @copy="handleConversationCopy">
         <div v-if="visibleAllMessages.length === 0">No messages</div>
         <ul>
   <li
@@ -65,6 +65,13 @@
         </li>
         </ul>
       </div>
+      <button
+        v-if="hasUnseenLiveContent"
+        type="button"
+        class="live-new-content-pill"
+        aria-label="Jump to latest content"
+        @click="jumpToLiveEdge"
+      >↓ New content</button>
     </div>
   </div>
 </template>
@@ -73,6 +80,7 @@
 import MessageRenderer from './MessageRenderer.vue'
 import ActionIconButton from './ActionIconButton.vue'
 import '../../../shared/messageContent.js'
+import '../../../shared/liveTurnModel.js'
 
 const messageContentUtils = globalThis.__ccodeViewerMessageContentUtils
 
@@ -80,7 +88,14 @@ if (!messageContentUtils) {
   throw new Error('messageContent utilities failed to load')
 }
 
-const { detectNoiseWrapper, extractPlainText, getUserPreviewText, hasUserVisibleContent } = messageContentUtils
+const liveTurnModel = globalThis.__ccodeViewerLiveTurnModel
+
+if (!liveTurnModel) {
+  throw new Error('liveTurnModel failed to load')
+}
+
+const { extractPlainText, getUserPreviewText, hasUserVisibleContent } = messageContentUtils
+const { mergeIntegratedMessage } = liveTurnModel
 import { AUTO_SELECT_FIRST_USER_ID } from '../constants'
 
 const WIDE_CHAR_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF01-\uFF60\uFFE0-\uFFE6]/
@@ -91,7 +106,12 @@ const TOOL_LIKE_BLOCK_TYPES = new Set(['tool_use', 'tool_result', 'tool', 'statu
 
 export default {
   components: { MessageRenderer, ActionIconButton },
-  props: ['file', 'sessionSource', 'highlightUserId'],
+  props: {
+    file: { type: String, default: null },
+    sessionSource: { type: String, default: null },
+    highlightUserId: { type: String, default: null },
+    liveModeEnabled: { type: Boolean, default: true }
+  },
   data() {
     return {
       users: [],
@@ -101,7 +121,9 @@ export default {
       selectedUser: null,
       highlightedMessageId: null,
       es: null,
-      sessionCache: new Map() // Cache for session data
+      sessionCache: new Map(), // Cache for session data
+      hasUnseenLiveContent: false,
+      isAtLiveEdge: true
     }
   },
   computed: {
@@ -114,6 +136,7 @@ export default {
   },
   beforeUnmount() {
     this.cleanupEventSource()
+    this.detachScrollListener()
   },
   watch: {
     file: { immediate: true, handler() { this.load() } },
@@ -131,11 +154,18 @@ export default {
           }
         }
       }
+    },
+    liveModeEnabled(newVal, oldVal) {
+      if (newVal && !oldVal && this.file) {
+        this.$nextTick(() => this.jumpToLiveEdge())
+      }
     }
   },
   methods: {
     async load() {
       if (!this.file) return
+
+      this.resetLiveViewportState()
 
       // Check cache first
       if (this.sessionCache.has(this.file)) {
@@ -160,6 +190,10 @@ export default {
 
         // Still setup SSE for live updates
         this.setupEventSource()
+        this.$nextTick(() => {
+          this.attachScrollListener()
+          this.updateIsAtLiveEdge()
+        })
         return
       }
 
@@ -218,6 +252,15 @@ export default {
           })
         }
       }
+
+      this.$nextTick(() => {
+        this.attachScrollListener()
+        this.updateIsAtLiveEdge()
+      })
+    },
+    resetLiveViewportState() {
+      this.hasUnseenLiveContent = false
+      this.isAtLiveEdge = true
     },
     resolveHighlightedUser(userId) {
       if (!userId || this.visibleUsers.length === 0) return null
@@ -234,11 +277,21 @@ export default {
           try {
             const d = JSON.parse(ev.data)
             const m = JSON.parse(d.line)
-            this.integrateMessage(m)
-            // Update cache when new messages arrive
+            const shouldAutoScroll = this.liveModeEnabled && this.isAtLiveEdge
+            const result = this.integrateMessage(m)
+            if (!result || result.kind === 'drop') return
+
             this.sessionCache.set(this.file, {
               users: this.users,
               mapping: this.mapping
+            })
+
+            this.$nextTick(() => {
+              if (shouldAutoScroll) {
+                this.scrollRightToBottom()
+              } else {
+                this.hasUnseenLiveContent = true
+              }
             })
           } catch (e) { console.error('SSE parse error', e) }
         })
@@ -251,79 +304,96 @@ export default {
       }
     },
     integrateMessage(m) {
-      // Drop local-command wrapper events using the shared structural detector
-      if (detectNoiseWrapper(m)) return
+      const wasAtEdgeBeforeMerge = this.isAtLiveEdge
+      const result = mergeIntegratedMessage(
+        { users: this.users, mapping: this.mapping },
+        m
+      )
 
-      // Normalize similar to server mapping: determine id, type, content
-      const id = m.uuid || (m.message && m.message.id) || `i_${Date.now()}`
-      let rawType = m.type
-      let type = rawType
-      const isMetaUser = rawType === 'user' && m.isMeta
+      if (result.kind === 'drop') return result
 
-      // If message type indicates a tool, treat as assistant
-      if (type === 'tool_use' || type === 'tool_result' || type === 'tool') type = 'assistant'
-      if (isMetaUser) type = 'assistant'
-      if (!type && m.message && m.message.role) type = m.message.role
-
-      // If message content contains tool entries, treat as assistant
-      const contentCandidate = (m.message && m.message.content) || m.content
-      if (Array.isArray(contentCandidate)) {
-        for (const item of contentCandidate) {
-          if (item && (item.type === 'tool_result' || item.type === 'tool_use' || item.type === 'tool')) {
-            type = 'assistant'
-            break
+      if (result.kind === 'append-user') {
+        const idx = this.users.length - 1
+        if (idx >= 0) {
+          const bare = this.users[idx]
+          const renderable = this.getRenderableContent(bare.raw || bare)
+          const decorated = this.decorateUser({
+            id: bare.id,
+            content: renderable,
+            timestamp: bare.timestamp
+          })
+          this.users.splice(idx, 1, decorated)
+        }
+      } else if (result.kind === 'append-assistant') {
+        const bucket = this.mapping[result.userId]
+        if (bucket && bucket.length) {
+          const last = bucket[bucket.length - 1]
+          last.content = this.getRenderableContent(last.raw || { content: last.content })
+          const flatText = this.extractText(last.content)
+          if (this.isInterruptedByUser(flatText)) {
+            last.muted = true
+            last._noCopy = true
           }
         }
       }
 
-  const content = this.getRenderableContent(m)
-  const flatText = this.extractText(content)
+      this.rebuildAllMessages()
 
-      // If rawType starts with 'tool', force assistant
-      if (typeof rawType === 'string' && rawType.startsWith('tool')) type = 'assistant'
-
-      if (type === 'user') {
-        this.users.push(this.decorateUser({ id, content, timestamp: m.timestamp }))
-        this.mapping[id] = []
-      } else {
-        // If this is a tool_result that references a parent assistant, try to merge
-        if (rawType === 'tool_result' && m.parentUuid) {
-          // find assistant in mappings by id or raw.uuid
-          let found = null
-          for (const [k, arr] of Object.entries(this.mapping)) {
-            found = arr.find(a => a.id === m.parentUuid || (a.raw && a.raw.uuid === m.parentUuid))
-            if (found) {
-              // append to found.content
-              if (Array.isArray(found.content)) found.content.push(content)
-              else found.content = [found.content, content]
-              return
-            }
+      if (result.kind === 'append-user' && !wasAtEdgeBeforeMerge) {
+        this.$nextTick(() => {
+          const target = this.allMessages.find(am => am.displayType === 'user' && am.id === result.userId)
+          if (target) {
+            target._flash = true
+            setTimeout(() => { target._flash = false }, 1800)
           }
-        }
-
-        // assign to explicit parent user or fall back to last user
-        let assigned = null
-        if (m.parentUuid) assigned = this.users.find(u => u.id === m.parentUuid)
-        if (!assigned && this.users.length > 0) assigned = this.users[this.users.length - 1]
-  const assistantOut = { id, content, timestamp: m.timestamp, raw: m }
-        // Mark interrupted-by-user messages as muted (grey, no copy)
-        if (this.isInterruptedByUser(flatText)) {
-          assistantOut.muted = true
-          assistantOut._noCopy = true
-        }
-        if (assigned) {
-          const arr = this.mapping[assigned.id] || []
-          arr.push(assistantOut)
-          this.mapping[assigned.id] = arr
-        } else {
-          const key = '__no_user__'
-          const arr = this.mapping[key] || []
-          arr.push(assistantOut)
-          this.mapping[key] = arr
-        }
-        // rebuild flat stream after integrating
-        this.rebuildAllMessages()
+        })
       }
+
+      return result
+    },
+    attachScrollListener() {
+      const el = this.$refs.rightScroll
+      if (!el) return
+      if (this._scrollListenerEl === el) return
+      this.detachScrollListener()
+      this._scrollListenerEl = el
+      this._scrollRafPending = false
+      this._scrollHandler = () => {
+        if (this._scrollRafPending) return
+        this._scrollRafPending = true
+        requestAnimationFrame(() => {
+          this._scrollRafPending = false
+          this.updateIsAtLiveEdge()
+        })
+      }
+      el.addEventListener('scroll', this._scrollHandler, { passive: true })
+    },
+    detachScrollListener() {
+      if (this._scrollListenerEl && this._scrollHandler) {
+        try { this._scrollListenerEl.removeEventListener('scroll', this._scrollHandler) } catch (e) {}
+      }
+      this._scrollListenerEl = null
+      this._scrollHandler = null
+      this._scrollRafPending = false
+    },
+    updateIsAtLiveEdge() {
+      const el = this.$refs.rightScroll
+      if (!el) return
+      const slack = Math.max(64, el.clientHeight * 0.05)
+      const wasAtEdge = this.isAtLiveEdge
+      this.isAtLiveEdge = (el.scrollHeight - el.scrollTop - el.clientHeight) <= slack
+      if (!wasAtEdge && this.isAtLiveEdge) {
+        this.hasUnseenLiveContent = false
+      }
+    },
+    scrollRightToBottom() {
+      const el = this.$refs.rightScroll
+      if (!el) return
+      el.scrollTop = el.scrollHeight
+    },
+    jumpToLiveEdge() {
+      this.scrollRightToBottom()
+      this.hasUnseenLiveContent = false
     },
     decorateUser(user) {
       const out = Object.assign({}, user)
@@ -785,6 +855,7 @@ export default {
 }
 
 .right {
+  position: relative;
   flex: 1;
   min-width: 0;
   height: 100%;
