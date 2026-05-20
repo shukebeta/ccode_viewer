@@ -2143,6 +2143,7 @@ async function searchInProject(projectId, keyword) {
 
         // Search through user messages
         for (const user of users) {
+          if (user.isNoiseWrapper) continue
           // Skip messages containing images
           if (containsImage(user.content)) continue
 
