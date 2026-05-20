@@ -3,6 +3,7 @@ const path = require('path')
 const cors = require('cors')
 const fsHelpers = require('./fsHelpers')
 const fileWatcher = require('./fileWatcher')
+const listWatcher = require('./listWatcher')
 
 const DEFAULT_PORT = 6173
 
@@ -99,6 +100,23 @@ function createApp(options = {}) {
     fileWatcher.subscribe(watchFile, res, source)
 
     // On client close, fileWatcher will remove the subscriber via res.on('close')
+  })
+
+  // Server-Sent Events endpoint for project/session list changes across discovered agent homes
+  app.get('/api/events/list', async (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    res.flushHeaders && res.flushHeaders()
+    res.write(': connected\n\n')
+
+    res.on('close', () => { listWatcher.unsubscribeListEvents(res) })
+
+    try {
+      await listWatcher.subscribeListEvents(res)
+    } catch (err) {
+      console.error('listWatcher subscribe failed:', err)
+    }
   })
 
   app.use((err, req, res, next) => {

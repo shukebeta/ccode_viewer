@@ -133,6 +133,7 @@
 <script>
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { SOURCE_LABELS } from '../constants.js'
+import { onSessionsChanged, onOpen } from '../lib/listEvents.js'
 export default {
   props: ['project', 'currentSessionFile'],
   data() {
@@ -140,7 +141,9 @@ export default {
       sessions: [],
       loading: false,
       loadRequestId: 0,
-      loadAbortController: null
+      loadAbortController: null,
+      _unsubscribeSessions: null,
+      _unsubscribeOpen: null
     }
   },
   mounted() {
@@ -155,12 +158,20 @@ export default {
         }, 100)
       })
     }
+
+    this._unsubscribeSessions = onSessionsChanged(({ projectId }) => {
+      if (!this.project) return
+      if (this.project.id === projectId || this.project.name === projectId) this.load()
+    })
+    this._unsubscribeOpen = onOpen(() => { if (this.project) this.load() })
   },
   beforeUnmount() {
     if (this.loadAbortController) {
       this.loadAbortController.abort()
       this.loadAbortController = null
     }
+    if (this._unsubscribeSessions) { this._unsubscribeSessions(); this._unsubscribeSessions = null }
+    if (this._unsubscribeOpen) { this._unsubscribeOpen(); this._unsubscribeOpen = null }
   },
   watch: {
     project: {
