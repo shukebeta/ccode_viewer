@@ -2,7 +2,6 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const {
-  DEFAULT_COPILOT_SESSION_PATH,
   DEFAULT_DISCOVERY_CACHE_TTL_MS,
   getCopilotSessionRoots,
   readCopilotWorkspace,
@@ -28,9 +27,15 @@ afterEach(() => {
 })
 
 describe('copilotWorkspaceDiscovery', () => {
-  it('prefers the configured session root and otherwise falls back to the default root', () => {
-    expect(getCopilotSessionRoots({ COPILOT_SESSION_PATH: '/tmp/copilot-root' })).toEqual(['/tmp/copilot-root'])
-    expect(getCopilotSessionRoots({})).toEqual([DEFAULT_COPILOT_SESSION_PATH])
+  it('returns a single override root when COPILOT_SESSION_PATH is set', async () => {
+    const roots = await getCopilotSessionRoots({ COPILOT_SESSION_PATH: '/tmp/copilot-root' })
+    expect(roots).toEqual([
+      expect.objectContaining({
+        rootPath: '/tmp/copilot-root',
+        homeName: '<override>',
+        isCanonical: false
+      })
+    ])
     expect(DEFAULT_DISCOVERY_CACHE_TTL_MS).toBeGreaterThan(0)
   })
 

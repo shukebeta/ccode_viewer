@@ -94,6 +94,13 @@
               <span v-if="s.branches && s.branches.length" class="branch-badge">
                 {{ s.branches.length === 1 ? s.branches[0] : s.branches.join(', ') }}
               </span>
+              <span
+                v-if="shouldShowSourceHome(s)"
+                class="source-home-badge"
+                :title="`Discovered under ${s.sourceHome}`"
+              >
+                {{ s.sourceHome }}
+              </span>
             </div>
             <div class="session-preview">{{ shortPreview(s.preview || s.id) }}</div>
           </button>
@@ -256,6 +263,13 @@ export default {
     },
     sourceLabel(src) {
       return SOURCE_LABELS[src] || src
+    },
+    shouldShowSourceHome(session) {
+      if (!session.sourceHome) return false
+      const sh = this.project?.sourceHomes
+      if (!sh) return false
+      const totalHomes = Object.values(sh).reduce((sum, arr) => sum + (arr?.length || 0), 0)
+      return totalHomes >= 2
     },
     buildResumeCommand(s) {
       const id = (s && s.id) || ''

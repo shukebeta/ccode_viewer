@@ -28,6 +28,20 @@
   color: var(--accent);
 }
 
+.source-home-badge {
+  display: inline-block;
+  background: rgba(120, 113, 108, 0.12);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 999px;
+  margin-left: var(--sp-1);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
 /* Session list */
 .session-row {
   display: flex;
