@@ -2,6 +2,65 @@ const SKILL_PREFIX = 'Base directory for this skill:'
 const CURRENT_DATETIME_TAG_RE = /<current_datetime>[\s\S]*?<\/current_datetime>\s*/gi
 const INLINE_IMAGE_MARKER_RE = /^\s*<image name=\[(.+?)\]>\s*$/i
 
+const LOCAL_COMMAND_CAVEAT_PREFIX = '<local-command-caveat>'
+const LOCAL_COMMAND_STDOUT_PREFIX = '<local-command-stdout>'
+
+function getTopLevelTextPrefix(rawEvent) {
+  if (!rawEvent || typeof rawEvent !== 'object') return ''
+
+  let content
+  if (rawEvent.message && rawEvent.message.content != null) {
+    content = rawEvent.message.content
+  } else if (rawEvent.content != null) {
+    content = rawEvent.content
+  } else {
+    return ''
+  }
+
+  if (typeof content === 'string') return content.trimStart()
+  if (!Array.isArray(content)) return ''
+
+  for (const item of content) {
+    if (typeof item === 'string') return item.trimStart()
+    if (!item || typeof item !== 'object') continue
+    const itemType = typeof item.type === 'string' ? item.type : ''
+    if (itemType === 'tool_use' || itemType === 'tool_result' || itemType === 'tool') {
+      return ''
+    }
+    if (typeof item.text === 'string') return item.text.trimStart()
+    return ''
+  }
+  return ''
+}
+
+function detectNoiseWrapper(rawEvent) {
+  if (!rawEvent || typeof rawEvent !== 'object') return null
+
+  const type = rawEvent.type
+  const isMeta = rawEvent.isMeta === true
+  const userType = rawEvent.userType
+
+  const caveatCandidate = type === 'user' && isMeta
+  const systemStdoutCandidate = type === 'system' && rawEvent.subtype === 'local_command'
+  const userExternalStdoutCandidate = type === 'user' && userType === 'external' && !isMeta
+
+  if (!caveatCandidate && !systemStdoutCandidate && !userExternalStdoutCandidate) return null
+
+  const prefix = getTopLevelTextPrefix(rawEvent)
+  if (!prefix) return null
+
+  if (caveatCandidate && prefix.startsWith(LOCAL_COMMAND_CAVEAT_PREFIX)) {
+    return { kind: 'local_command', subtype: 'caveat' }
+  }
+  if (systemStdoutCandidate && prefix.startsWith(LOCAL_COMMAND_STDOUT_PREFIX)) {
+    return { kind: 'local_command', subtype: 'stdout' }
+  }
+  if (userExternalStdoutCandidate && prefix.startsWith(LOCAL_COMMAND_STDOUT_PREFIX)) {
+    return { kind: 'local_command', subtype: 'stdout' }
+  }
+  return null
+}
+
 function stripCurrentDatetimeTags(text) {
   if (typeof text !== 'string') return ''
   return text.replace(CURRENT_DATETIME_TAG_RE, '').trim()
@@ -259,6 +318,7 @@ function getSkillContentSummary(text) {
 }
 
 const messageContentUtils = {
+  detectNoiseWrapper,
   extractLeadingSkillPayload,
   extractPlainText,
   getSkillContentSummary,

@@ -1,7 +1,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
-const { extractPlainText, getUserPreviewText, isImageContentBlock } = require('../shared/messageContent')
+const { detectNoiseWrapper, extractPlainText, getUserPreviewText, isImageContentBlock } = require('../shared/messageContent')
 const {
   readCopilotWorkspace,
   extractCopilotProjectPath,
@@ -1985,7 +1985,14 @@ async function mapSessionMessages(filePath) {
   if (typeof rawType === 'string' && rawType.startsWith('tool')) type = 'assistant'
     const timestamp = m.timestamp || (m.message && m.message.timestamp) || null
     const content = (m.message && (m.message.content || m.message)) || m.data?.content || m.content || m
-  return { raw: m, rawType, id, type, timestamp, content, index: i, parentUuid: m.parentUuid || m.parentId }
+    const noise = detectNoiseWrapper(m)
+    const entry = { raw: m, rawType, id, type, timestamp, content, index: i, parentUuid: m.parentUuid || m.parentId }
+    if (noise) {
+      entry.isNoiseWrapper = true
+      entry.noiseKind = noise.kind
+      entry.noiseSubtype = noise.subtype
+    }
+    return entry
   })
 
   // Build users array and assistant array
@@ -2075,19 +2082,33 @@ async function mapSessionMessages(filePath) {
   // Prepare simplified user list (id, preview, timestamp)
   const usersOut = users.map(u => {
     const preview = getUserPreviewText(u.content)
-    return { 
-      id: u.id, 
+    const out = {
+      id: u.id,
       content: u.content, // Preserve original structure for rendering
       preview: preview, // Keep full text for search data source
-      timestamp: u.timestamp, 
-      rawType: u.rawType || null 
+      timestamp: u.timestamp,
+      rawType: u.rawType || null
     }
+    if (u.isNoiseWrapper) {
+      out.isNoiseWrapper = true
+      out.noiseKind = u.noiseKind
+      out.noiseSubtype = u.noiseSubtype
+    }
+    return out
   })
 
   // Convert assistant messages to serializable form
   const mapOut = {}
   for (const [k, arr] of Object.entries(mapping)) {
-    mapOut[k] = arr.map(a => ({ id: a.id, content: a.content, timestamp: a.timestamp, raw: a.raw }))
+    mapOut[k] = arr.map(a => {
+      const out = { id: a.id, content: a.content, timestamp: a.timestamp, raw: a.raw }
+      if (a.isNoiseWrapper) {
+        out.isNoiseWrapper = true
+        out.noiseKind = a.noiseKind
+        out.noiseSubtype = a.noiseSubtype
+      }
+      return out
+    })
   }
 
   return { users: usersOut, mapping: mapOut }
@@ -2122,6 +2143,7 @@ async function searchInProject(projectId, keyword) {
 
         // Search through user messages
         for (const user of users) {
+          if (user.isNoiseWrapper) continue
           // Skip messages containing images
           if (containsImage(user.content)) continue
 
