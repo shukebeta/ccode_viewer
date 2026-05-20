@@ -178,8 +178,8 @@ export default {
         this.loading = false
         this.rebuildAllMessages()
 
-        // Auto-highlight if needed
-        if (this.highlightUserId) {
+        // Auto-highlight if needed (skip the first-user sentinel when Live is on — we snap to the live edge instead)
+        if (this.highlightUserId && !this.shouldSnapToLiveEdgeOnLoad()) {
           const user = this.resolveHighlightedUser(this.highlightUserId)
           if (user) {
             this.$nextTick(() => {
@@ -192,6 +192,7 @@ export default {
         this.setupEventSource()
         this.$nextTick(() => {
           this.attachScrollListener()
+          if (this.shouldSnapToLiveEdgeOnLoad()) this.scrollRightToBottom()
           this.updateIsAtLiveEdge()
         })
         return
@@ -243,8 +244,8 @@ export default {
       } catch (e) { console.error(e) }
       this.loading = false
 
-      // Auto-highlight if highlightUserId is set
-      if (this.highlightUserId) {
+      // Auto-highlight if highlightUserId is set (skip the first-user sentinel when Live is on)
+      if (this.highlightUserId && !this.shouldSnapToLiveEdgeOnLoad()) {
         const user = this.resolveHighlightedUser(this.highlightUserId)
         if (user) {
           this.$nextTick(() => {
@@ -255,12 +256,19 @@ export default {
 
       this.$nextTick(() => {
         this.attachScrollListener()
+        if (this.shouldSnapToLiveEdgeOnLoad()) this.scrollRightToBottom()
         this.updateIsAtLiveEdge()
       })
     },
     resetLiveViewportState() {
       this.hasUnseenLiveContent = false
       this.isAtLiveEdge = true
+    },
+    shouldSnapToLiveEdgeOnLoad() {
+      if (!this.liveModeEnabled) return false
+      // No highlight target, or only the "auto-select first user" sentinel → snap to live edge.
+      // A real user id from a search result should keep its scroll-into-view behavior.
+      return !this.highlightUserId || this.highlightUserId === AUTO_SELECT_FIRST_USER_ID
     },
     resolveHighlightedUser(userId) {
       if (!userId || this.visibleUsers.length === 0) return null

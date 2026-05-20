@@ -883,4 +883,10 @@
   .live-mode-toggle .live-mode-toggle-label {
     display: none;
   }
+
+  /* Let the project selector shrink so the Live switch stays in view */
+  .app-header .project-selector {
+    min-width: 0;
+    flex: 1 1 0;
+  }
 }
