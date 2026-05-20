@@ -338,4 +338,39 @@ describe('list watcher: lifecycle and race', () => {
     unsubscribeListEvents(a)
     unsubscribeListEvents(b)
   })
+
+  it('tears watchers down if the only subscriber leaves during init', async () => {
+    fs.mkdirSync(path.join(tempHome, '.claude', 'projects'), { recursive: true })
+
+    const res = makeFakeRes()
+    const subscribePromise = subscribeListEvents(res)
+    // Simulate the client disconnecting mid-init: the route handler's res.on('close')
+    // fires unsubscribe before subscribeListEvents resolves.
+    unsubscribeListEvents(res)
+    await subscribePromise
+
+    // No subscribers remain — listWatcher must have torn the freshly-attached
+    // watchers down rather than leaving them idle with zero consumers.
+    expect(priv.subscribers.size).toBe(0)
+    expect(priv.getWatcherCount()).toBe(0)
+  })
+})
+
+describe('list watcher: gcopilot structural events', () => {
+  it('does not fire projects_changed for an addDir when workspace.yaml is missing', async () => {
+    const root = path.join(tempHome, '.copilot', 'session-state')
+    fs.mkdirSync(root, { recursive: true })
+
+    const res = makeFakeRes()
+    await subscribeListEvents(res)
+
+    // New session dir appears with no workspace.yaml — projectId undeterminable.
+    fs.mkdirSync(path.join(root, 'session-new-broken'), { recursive: true })
+    await wait(FLUSH_BUDGET_MS)
+
+    expect(eventsFor(res, 'projects_changed')).toHaveLength(0)
+    expect(eventsFor(res, 'sessions_changed')).toHaveLength(0)
+
+    unsubscribeListEvents(res)
+  })
 })

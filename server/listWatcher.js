@@ -158,9 +158,14 @@ async function onFsEvent(kind, home, eventPath, eventType) {
     projectId = null
   }
 
+  const isDirEvent = eventType === 'addDir' || eventType === 'unlinkDir'
+  // claudecode top-level addDir/unlinkDir is always structural because projectId is
+  // derived from the directory name. gcopilot needs a derivable projectId (read from
+  // workspace.yaml) before we tell clients the project list changed — a missing /
+  // malformed workspace.yaml shouldn't trigger a /api/projects round-trip.
   const isStructuralAddRemove =
-    (kind === 'claudecode' || kind === 'gcopilot') &&
-    (eventType === 'addDir' || eventType === 'unlinkDir')
+    (kind === 'claudecode' && isDirEvent) ||
+    (kind === 'gcopilot' && isDirEvent && projectId != null)
   const isCodexNewProject = kind === 'codex' && projectId != null && !knownProjectIds.has(projectId)
 
   if (!projectId && !isStructuralAddRemove) return
@@ -308,8 +313,14 @@ async function subscribeListEvents(res) {
   try {
     await ensureWatchers()
   } catch (e) {
-    if (process.env.LIST_WATCHER_DEBUG) console.error('list watcher init failed', e)
+    // A silent failure leaves subscribers in a permanently no-event state, so
+    // always surface init failures even without the debug env var.
+    console.warn('listWatcher init failed:', e && e.message ? e.message : e)
   }
+  // The client may have disconnected while ensureWatchers was awaiting discovery —
+  // attachWatcher runs synchronously after the await, so without this recheck the
+  // newly-attached watchers would have zero subscribers and idle inotify handles.
+  if (subscribers.size === 0) teardownAll()
 }
 
 function unsubscribeListEvents(res) {
