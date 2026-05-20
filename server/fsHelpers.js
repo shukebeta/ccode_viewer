@@ -1042,6 +1042,7 @@ module.exports = {
   extractCopilotProjectPath,
   resolveCopilotProjectPath,
   extractCodexProjectPath,
+  pathToClaudeDirName,
   normalizeCodexEvent,
   shouldHideRawSessionEvent
 }

@@ -23,6 +23,8 @@
 </template>
 
 <script>
+import { onProjectsChanged, onOpen } from '../lib/listEvents.js'
+
 export default {
   props: {
     selected: { type: Object, default: null }
@@ -30,7 +32,9 @@ export default {
   data() {
     return {
       projects: [],
-      selectedProject: null
+      selectedProject: null,
+      _unsubscribeProjects: null,
+      _unsubscribeOpen: null
     }
   },
   async mounted() {
@@ -40,6 +44,13 @@ export default {
     if (this.selected) {
       this.selectedProject = this.selected.id
     }
+
+    this._unsubscribeProjects = onProjectsChanged(() => this.loadProjects())
+    this._unsubscribeOpen = onOpen(() => this.loadProjects())
+  },
+  beforeUnmount() {
+    if (this._unsubscribeProjects) { this._unsubscribeProjects(); this._unsubscribeProjects = null }
+    if (this._unsubscribeOpen) { this._unsubscribeOpen(); this._unsubscribeOpen = null }
   },
   watch: {
     selected(newVal) {
