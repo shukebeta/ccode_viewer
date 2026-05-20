@@ -820,3 +820,67 @@
     margin-left: 0;
   }
 }
+
+/* Live-mode "new content" pill (v-if rendered, so styled globally) */
+.live-new-content-pill {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  z-index: 30;
+  appearance: none;
+  border: 1px solid rgba(37, 99, 235, 0.32);
+  background: rgba(37, 99, 235, 0.92);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.2;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.live-new-content-pill:hover {
+  background: rgba(37, 99, 235, 1);
+  transform: translateY(-1px);
+}
+
+.live-new-content-pill:active {
+  transform: translateY(0);
+}
+
+.live-new-content-pill:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+/* Live toggle switch (header) */
+.live-mode-toggle {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.live-mode-toggle .el-switch {
+  --el-switch-on-color: var(--accent, #2563eb);
+}
+
+@media (max-width: 900px) {
+  .live-mode-toggle {
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .live-mode-toggle .live-mode-toggle-label {
+    display: none;
+  }
+}
