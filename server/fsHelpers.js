@@ -10,6 +10,7 @@ const {
   discoverCopilotWorkspaces,
   clearCopilotDiscoveryCache
 } = require('./discovery/copilotWorkspaceDiscovery')
+const { discoverAgentHomes, shouldAttributeHome } = require('./discovery/agentHomeDiscovery')
 
 const CLAUDE_PROJECTS_PATH = path.join(os.homedir(), '.claude', 'projects')
 const CODEX_SESSIONS_PATH = path.join(os.homedir(), '.codex', 'sessions')
@@ -21,6 +22,28 @@ function getClaudeProjectsPath() {
 
 function getCodexSessionsPath() {
   return process.env.CODEX_SESSIONS_PATH || CODEX_SESSIONS_PATH
+}
+
+function getClaudeProjectsRoots() {
+  return discoverAgentHomes({ kind: 'claudecode' })
+}
+
+function getCodexSessionsRoots() {
+  return discoverAgentHomes({ kind: 'codex' })
+}
+
+function pushSourceHomeName(project, source, homeName) {
+  if (!homeName) return
+  if (!project.sourceHomes) project.sourceHomes = {}
+  if (!project.sourceHomes[source]) project.sourceHomes[source] = []
+  if (!project.sourceHomes[source].includes(homeName)) {
+    project.sourceHomes[source].push(homeName)
+  }
+}
+
+function recordSourceHome(project, source, home) {
+  if (!shouldAttributeHome(home)) return
+  pushSourceHomeName(project, source, home.homeName)
 }
 
 // Local copy of resolveProjectPath (ported from electron/pathResolver.ts)
@@ -289,20 +312,19 @@ function formatCodexPlanUpdate(args) {
   return parts.join('\n\n').trim()
 }
 
-async function listCodexSessionFiles(rootDir) {
+async function walkCodexSessionDir(dir) {
   const files = []
-  const startDir = rootDir || getCodexSessionsPath()
 
-  async function walk(dir) {
+  async function walk(current) {
     let entries = []
     try {
-      entries = await fs.readdir(dir, { withFileTypes: true })
+      entries = await fs.readdir(current, { withFileTypes: true })
     } catch (e) {
       return
     }
 
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
+      const fullPath = path.join(current, entry.name)
       if (entry.isDirectory()) {
         await walk(fullPath)
       } else if (entry.isFile() && /^rollout-.*\.jsonl$/i.test(entry.name)) {
@@ -311,8 +333,29 @@ async function listCodexSessionFiles(rootDir) {
     }
   }
 
-  await walk(startDir)
+  await walk(dir)
   return files
+}
+
+async function listCodexSessionFiles(rootDir) {
+  if (rootDir) {
+    const files = await walkCodexSessionDir(rootDir)
+    return files.map((filePath) => ({ filePath, sourceHome: null, isCanonical: true }))
+  }
+
+  const tagged = []
+  const roots = await getCodexSessionsRoots()
+  for (const root of roots) {
+    const files = await walkCodexSessionDir(root.sessionDir)
+    for (const filePath of files) {
+      tagged.push({
+        filePath,
+        sourceHome: root.homeName,
+        isCanonical: root.isCanonical
+      })
+    }
+  }
+  return tagged
 }
 
 /**
@@ -363,23 +406,27 @@ async function getCodexProjects() {
   try {
     const sessionFiles = await listCodexSessionFiles()
 
-    for (const sessionFile of sessionFiles) {
-      const projectPath = await extractCodexProjectPath(sessionFile)
+    for (const { filePath, sourceHome, isCanonical } of sessionFiles) {
+      const projectPath = await extractCodexProjectPath(filePath)
       if (!projectPath) continue
 
-      const stats = await fs.stat(sessionFile)
+      const stats = await fs.stat(filePath)
       const projectId = pathToClaudeDirName(projectPath)
 
       if (!projectMap.has(projectId)) {
         projectMap.set(projectId, {
           projectPath,
           sessions: [],
+          _homeNames: [],
           lastUpdated: stats.mtime
         })
       }
 
       const project = projectMap.get(projectId)
-      project.sessions.push(sessionFile)
+      project.sessions.push(filePath)
+      if (shouldAttributeHome({ homeName: sourceHome, isCanonical }) && !project._homeNames.includes(sourceHome)) {
+        project._homeNames.push(sourceHome)
+      }
       if (stats.mtime > project.lastUpdated) {
         project.lastUpdated = stats.mtime
       }
@@ -402,19 +449,23 @@ async function getCopilotProjects() {
     const discoveries = await discoverCopilotWorkspaces()
 
     for (const discovery of discoveries) {
-      const { projectPath, sessionPath, lastUpdated } = discovery
+      const { projectPath, sessionPath, lastUpdated, homeName, isCanonical } = discovery
       const projectId = pathToClaudeDirName(projectPath)
 
       if (!projectMap.has(projectId)) {
         projectMap.set(projectId, {
           projectPath,
           sessions: [],
+          _homeNames: [],
           lastUpdated
         })
       }
 
       const project = projectMap.get(projectId)
       project.sessions.push(sessionPath)
+      if (shouldAttributeHome({ homeName, isCanonical }) && !project._homeNames.includes(homeName)) {
+        project._homeNames.push(homeName)
+      }
 
       if (lastUpdated > project.lastUpdated) {
         project.lastUpdated = lastUpdated
@@ -431,16 +482,29 @@ async function getProjects() {
   // Use a map to merge projects from multiple sources
   const projectMap = new Map()
 
-  // 1. Get Claude Code projects
+  // 1. Get Claude Code projects across all discovered homes
   try {
-    const entries = await fs.readdir(getClaudeProjectsPath(), { withFileTypes: true })
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const projectPath = path.join(getClaudeProjectsPath(), entry.name)
-        const sessions = await fs.readdir(projectPath)
-        const sessionFiles = sessions.filter(f => f.endsWith('.jsonl'))
+    const roots = await getClaudeProjectsRoots()
+    for (const root of roots) {
+      let entries
+      try {
+        entries = await fs.readdir(root.sessionDir, { withFileTypes: true })
+      } catch (e) {
+        continue
+      }
 
-        // Determine most-recent session mtime for lastUpdated
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const projectPath = path.join(root.sessionDir, entry.name)
+
+        let sessionFiles
+        try {
+          const sessions = await fs.readdir(projectPath)
+          sessionFiles = sessions.filter(f => f.endsWith('.jsonl'))
+        } catch (e) {
+          continue
+        }
+
         let lastUpdated = null
         for (const f of sessionFiles) {
           try {
@@ -451,23 +515,33 @@ async function getProjects() {
           }
         }
 
-        // Use resolved project path as display name
-        const displayName = resolveProjectPath(entry.name)
+        if (!projectMap.has(entry.name)) {
+          const displayName = resolveProjectPath(entry.name)
+          projectMap.set(entry.name, {
+            id: entry.name,
+            name: displayName,
+            path: projectPath,
+            sources: ['claudecode'],
+            sessionCount: {
+              claudecode: sessionFiles.length
+            },
+            lastUpdated: lastUpdated ? lastUpdated.toISOString() : undefined
+          })
+          recordSourceHome(projectMap.get(entry.name), 'claudecode', root)
+          continue
+        }
 
-        projectMap.set(entry.name, {
-          id: entry.name,
-          name: displayName,
-          path: projectPath,
-          sources: ['claudecode'],
-          sessionCount: {
-            claudecode: sessionFiles.length
-          },
-          lastUpdated: lastUpdated ? lastUpdated.toISOString() : undefined
-        })
+        const existing = projectMap.get(entry.name)
+        existing.sessionCount.claudecode = (existing.sessionCount.claudecode || 0) + sessionFiles.length
+        const existingDate = existing.lastUpdated ? new Date(existing.lastUpdated) : null
+        if (lastUpdated && (!existingDate || lastUpdated > existingDate)) {
+          existing.lastUpdated = lastUpdated.toISOString()
+        }
+        recordSourceHome(existing, 'claudecode', root)
       }
     }
   } catch (e) {
-    // Claude projects directory doesn't exist or can't be read
+    // Claude projects discovery failed
   }
 
   // 2. Get Copilot projects and merge
@@ -476,7 +550,6 @@ async function getProjects() {
 
     for (const [projectId, copilotData] of copilotProjects) {
       if (projectMap.has(projectId)) {
-        // Project exists in both sources - merge
         const existing = projectMap.get(projectId)
         existing.sources.push('gcopilot')
         existing.sessionCount.gcopilot = copilotData.sessions.length
@@ -485,14 +558,15 @@ async function getProjects() {
           existing.path = copilotData.projectPath
         }
 
-        // Update lastUpdated to the most recent
         const existingDate = existing.lastUpdated ? new Date(existing.lastUpdated) : null
         if (!existingDate || copilotData.lastUpdated > existingDate) {
           existing.lastUpdated = copilotData.lastUpdated.toISOString()
         }
+        for (const homeName of copilotData._homeNames) {
+          pushSourceHomeName(existing, 'gcopilot', homeName)
+        }
       } else {
-        // New project only in Copilot
-        projectMap.set(projectId, {
+        const newProject = {
           id: projectId,
           name: copilotData.projectPath,
           path: copilotData.projectPath,
@@ -501,7 +575,11 @@ async function getProjects() {
             gcopilot: copilotData.sessions.length
           },
           lastUpdated: copilotData.lastUpdated.toISOString()
-        })
+        }
+        for (const homeName of copilotData._homeNames) {
+          pushSourceHomeName(newProject, 'gcopilot', homeName)
+        }
+        projectMap.set(projectId, newProject)
       }
     }
   } catch (e) {
@@ -526,8 +604,11 @@ async function getProjects() {
         if (!existingDate || codexData.lastUpdated > existingDate) {
           existing.lastUpdated = codexData.lastUpdated.toISOString()
         }
+        for (const homeName of codexData._homeNames) {
+          pushSourceHomeName(existing, 'codex', homeName)
+        }
       } else {
-        projectMap.set(projectId, {
+        const newProject = {
           id: projectId,
           name: codexData.projectPath,
           path: codexData.projectPath,
@@ -536,7 +617,11 @@ async function getProjects() {
             codex: codexData.sessions.length
           },
           lastUpdated: codexData.lastUpdated.toISOString()
-        })
+        }
+        for (const homeName of codexData._homeNames) {
+          pushSourceHomeName(newProject, 'codex', homeName)
+        }
+        projectMap.set(projectId, newProject)
       }
     }
   } catch (e) {
@@ -561,6 +646,7 @@ async function parseCopilotSession(sessionDir, discovery = null) {
   try {
     const eventsPath = discovery?.sessionFilePath || await resolveSessionFilePath(sessionDir)
     const stats = discovery?.lastUpdated ? { mtime: discovery.lastUpdated } : await fs.stat(eventsPath)
+    const attachSourceHome = shouldAttributeHome(discovery)
 
     let content
     try {
@@ -626,7 +712,7 @@ async function parseCopilotSession(sessionDir, discovery = null) {
       preview = workspace.summary
     }
 
-    return {
+    const session = {
       id: sessionId,
       filePath: sessionDir,
       startTime: startTime ? startTime.toISOString() : undefined,
@@ -639,6 +725,8 @@ async function parseCopilotSession(sessionDir, discovery = null) {
       source: 'gcopilot',
       branches: workspace?.branch ? [workspace.branch] : []
     }
+    if (attachSourceHome) session.sourceHome = discovery.homeName
+    return session
   } catch (e) {
     return null
   }
@@ -671,7 +759,8 @@ async function getCopilotSessions(projectId) {
   return sessions
 }
 
-async function parseCodexSession(sessionFilePath) {
+async function parseCodexSession(sessionFilePath, opts = {}) {
+  const { sourceHome = null, isCanonical = true } = opts
   try {
     const stats = await fs.stat(sessionFilePath)
     const content = await fs.readFile(sessionFilePath, 'utf8')
@@ -733,7 +822,7 @@ async function parseCodexSession(sessionFilePath) {
       }
     }
 
-    return {
+    const session = {
       id: sessionId,
       filePath: sessionFilePath,
       startTime: startTime ? startTime.toISOString() : undefined,
@@ -747,6 +836,8 @@ async function parseCodexSession(sessionFilePath) {
       branches: [...branches],
       projectPath
     }
+    if (shouldAttributeHome({ homeName: sourceHome, isCanonical })) session.sourceHome = sourceHome
+    return session
   } catch (e) {
     return null
   }
@@ -758,8 +849,8 @@ async function getCodexSessions(projectId) {
   try {
     const sessionFiles = await listCodexSessionFiles()
 
-    for (const sessionFile of sessionFiles) {
-      const session = await parseCodexSession(sessionFile)
+    for (const { filePath, sourceHome, isCanonical } of sessionFiles) {
+      const session = await parseCodexSession(filePath, { sourceHome, isCanonical })
       if (!session || !session.projectPath) continue
 
       const sessionProjectId = pathToClaudeDirName(session.projectPath)
@@ -776,94 +867,125 @@ async function getCodexSessions(projectId) {
   return sessions
 }
 
+async function collectClaudeSessionsFromDir(projectPath, displayProjectPath, sessions, sourceHome, isCanonical, seenSessionFiles = null) {
+  let files
+  try {
+    files = await fs.readdir(projectPath)
+  } catch (e) {
+    return
+  }
+
+  for (const file of files) {
+    if (!file.endsWith('.jsonl')) continue
+    const filePath = path.join(projectPath, file)
+    if (seenSessionFiles) {
+      if (seenSessionFiles.has(filePath)) continue
+      seenSessionFiles.add(filePath)
+    }
+
+    let stats
+    try {
+      stats = await fs.stat(filePath)
+    } catch (e) {
+      continue
+    }
+
+    const content = await fs.readFile(filePath, 'utf8')
+    const lines = content.trim().split('\n')
+
+    let startTime, endTime
+    let messageCount = 0
+    let totalCost = 0
+    const recentMessages = []
+    const branches = new Set()
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line)
+        if (data.timestamp) {
+          const ts = new Date(data.timestamp)
+          if (!startTime || ts < startTime) startTime = ts
+          if (!endTime || ts > endTime) endTime = ts
+        }
+        if (data.gitBranch) branches.add(data.gitBranch)
+        if (data.type === 'user' || data.type === 'assistant') {
+          messageCount++
+          let messageText = ''
+          if (data.message && data.message.content) {
+            if (data.type === 'user' && !data.isMeta) {
+              messageText = getUserPreviewText(data.message.content)
+            } else if (typeof data.message.content === 'string') messageText = data.message.content
+            else if (Array.isArray(data.message.content)) {
+              const t = data.message.content.find(i => i.type === 'text')
+              if (t && t.text) messageText = t.text
+            }
+          } else if (data.content) {
+            messageText = data.type === 'user' && !data.isMeta
+              ? getUserPreviewText(data.content)
+              : (typeof data.content === 'string' ? data.content : '')
+          }
+          if (messageText) {
+            recentMessages.push(messageText.substring(0, 150))
+            if (recentMessages.length > 3) recentMessages.shift()
+          }
+        }
+        if (data.costUSD) totalCost += data.costUSD
+      } catch (e) {
+        // skip
+      }
+    }
+
+    let sessionId = path.basename(file, '.jsonl')
+    if (lines.length > 0) {
+      try {
+        const first = JSON.parse(lines[0])
+        if (first.sessionId) sessionId = first.sessionId
+      } catch (e) {}
+    }
+
+    const isAgent = file.startsWith('agent-')
+
+    if (messageCount >= 3) {
+      const session = {
+        id: sessionId,
+        projectPath: displayProjectPath,
+        filePath,
+        startTime: startTime ? startTime.toISOString() : undefined,
+        endTime: endTime ? endTime.toISOString() : undefined,
+        mtime: stats.mtime,
+        messageCount,
+        totalCost,
+        preview: recentMessages.join('\n').substring(0, 200),
+        isAgent,
+        source: 'claudecode',
+        branches: [...branches]
+      }
+      if (shouldAttributeHome({ homeName: sourceHome, isCanonical })) session.sourceHome = sourceHome
+      sessions.push(session)
+    }
+  }
+}
+
 async function getSessions(projectName) {
   const sessions = []
 
-  // 1. Get Claude Code sessions
+  // 1. Get Claude Code sessions across all discovered homes
   try {
-    const projectPath = path.isAbsolute(projectName)
-      ? projectName
-      : path.join(getClaudeProjectsPath(), projectName.replace(/\//g, '-'))
-
-    const files = await fs.readdir(projectPath)
-
-    for (const file of files) {
-      if (file.endsWith('.jsonl')) {
-        const filePath = path.join(projectPath, file)
-        const stats = await fs.stat(filePath)
-        const content = await fs.readFile(filePath, 'utf8')
-        const lines = content.trim().split('\n')
-
-        let startTime, endTime
-        let messageCount = 0
-        let totalCost = 0
-        const recentMessages = []
-        const branches = new Set()
-
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line)
-            if (data.timestamp) {
-              const ts = new Date(data.timestamp)
-              if (!startTime || ts < startTime) startTime = ts
-              if (!endTime || ts > endTime) endTime = ts
-            }
-            if (data.gitBranch) branches.add(data.gitBranch)
-            if (data.type === 'user' || data.type === 'assistant') {
-              messageCount++
-              let messageText = ''
-              if (data.message && data.message.content) {
-                if (data.type === 'user' && !data.isMeta) {
-                  messageText = getUserPreviewText(data.message.content)
-                } else if (typeof data.message.content === 'string') messageText = data.message.content
-                else if (Array.isArray(data.message.content)) {
-                  const t = data.message.content.find(i => i.type === 'text')
-                  if (t && t.text) messageText = t.text
-                }
-              } else if (data.content) {
-                messageText = data.type === 'user' && !data.isMeta
-                  ? getUserPreviewText(data.content)
-                  : (typeof data.content === 'string' ? data.content : '')
-              }
-              if (messageText) {
-                recentMessages.push(messageText.substring(0, 150))
-                if (recentMessages.length > 3) recentMessages.shift()
-              }
-            }
-            if (data.costUSD) totalCost += data.costUSD
-          } catch (e) {
-            // skip
-          }
-        }
-
-        let sessionId = path.basename(file, '.jsonl')
-        if (lines.length > 0) {
-          try {
-            const first = JSON.parse(lines[0])
-            if (first.sessionId) sessionId = first.sessionId
-          } catch (e) {}
-        }
-
-        // Detect if this is an agent/subagent session
-        const isAgent = file.startsWith('agent-')
-
-        // Only include sessions with 3+ messages
-        if (messageCount >= 3) {
-          sessions.push({
-            id: sessionId,
-            projectPath,
-            filePath,
-            startTime: startTime ? startTime.toISOString() : undefined,
-            endTime: endTime ? endTime.toISOString() : undefined,
-            mtime: stats.mtime,
-            messageCount,
-            totalCost,
-            preview: recentMessages.join('\n').substring(0, 200),
-            isAgent,
-            source: 'claudecode',
-            branches: [...branches]
-          })
-        }
+    if (path.isAbsolute(projectName)) {
+      await collectClaudeSessionsFromDir(projectName, projectName, sessions, null, true)
+    } else {
+      const roots = await getClaudeProjectsRoots()
+      const seenSessionFiles = new Set()
+      for (const root of roots) {
+        const projectPath = path.join(root.sessionDir, projectName.replace(/\//g, '-'))
+        await collectClaudeSessionsFromDir(
+          projectPath,
+          projectPath,
+          sessions,
+          root.homeName,
+          root.isCanonical,
+          seenSessionFiles
+        )
       }
     }
   } catch (e) {

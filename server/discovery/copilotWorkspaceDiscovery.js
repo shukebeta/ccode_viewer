@@ -1,18 +1,34 @@
 const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
+const {
+  discoverAgentHomes,
+  clearAgentHomeDiscoveryCache
+} = require('./agentHomeDiscovery')
 
 const DEFAULT_COPILOT_SESSION_PATH = path.join(os.homedir(), '.copilot', 'session-state')
 const DEFAULT_DISCOVERY_CACHE_TTL_MS = 2000
 const discoveryCache = new Map()
 
-function getCopilotSessionRoots(env = process.env) {
-  const configuredRoot = env.COPILOT_SESSION_PATH
-  return configuredRoot ? [configuredRoot] : [DEFAULT_COPILOT_SESSION_PATH]
+async function getCopilotSessionRoots(env = process.env) {
+  const homes = await discoverAgentHomes({ kind: 'gcopilot', env })
+  return homes.map((home) => ({
+    rootPath: home.sessionDir,
+    homeName: home.homeName,
+    isCanonical: home.isCanonical
+  }))
 }
 
-function getCopilotSessionPath(env = process.env) {
-  return getCopilotSessionRoots(env)[0]
+async function getCopilotSessionPath(env = process.env) {
+  const roots = await getCopilotSessionRoots(env)
+  return roots[0]?.rootPath || DEFAULT_COPILOT_SESSION_PATH
+}
+
+function normalizeRootSpec(spec) {
+  if (typeof spec === 'string') {
+    return { rootPath: spec, homeName: null, isCanonical: false }
+  }
+  return spec
 }
 
 function isLegacyCopilotSessionFile(entry, pathImpl = path) {
@@ -132,22 +148,25 @@ async function getSessionLastUpdated(sessionPath, sessionFilePath, deps = {}) {
   }
 }
 
-function getDiscoveryCacheKey(rootPaths) {
-  return rootPaths.join('||')
+function getDiscoveryCacheKey(rootSpecs) {
+  return rootSpecs.map((spec) => spec.rootPath).join('||')
 }
 
 function clearCopilotDiscoveryCache() {
   discoveryCache.clear()
+  clearAgentHomeDiscoveryCache()
 }
 
 async function discoverCopilotWorkspaces(options = {}) {
   const fsModule = options.fsModule || fs
   const pathModule = options.pathModule || path
-  const rootPaths = options.rootPaths || getCopilotSessionRoots(options.env)
+  const rootSpecs = options.rootPaths
+    ? options.rootPaths.map(normalizeRootSpec)
+    : await getCopilotSessionRoots(options.env)
   const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_DISCOVERY_CACHE_TTL_MS
   const bypassCache = options.bypassCache === true
   const now = typeof options.now === 'number' ? options.now : Date.now()
-  const cacheKey = getDiscoveryCacheKey(rootPaths)
+  const cacheKey = getDiscoveryCacheKey(rootSpecs)
 
   if (!bypassCache && cacheTtlMs > 0) {
     const cached = discoveryCache.get(cacheKey)
@@ -158,7 +177,8 @@ async function discoverCopilotWorkspaces(options = {}) {
 
   const discoveries = []
 
-  for (const rootPath of rootPaths) {
+  for (const rootSpec of rootSpecs) {
+    const { rootPath, homeName, isCanonical } = rootSpec
     try {
       const entries = await fsModule.readdir(rootPath, { withFileTypes: true })
 
@@ -186,6 +206,8 @@ async function discoverCopilotWorkspaces(options = {}) {
 
         discoveries.push({
           rootPath,
+          homeName,
+          isCanonical,
           entryName: entry.name,
           sessionPath,
           sessionFilePath,

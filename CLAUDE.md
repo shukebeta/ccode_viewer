@@ -186,9 +186,43 @@ npm test
   messageCount: number, // Total user + assistant messages
   totalCost: number,    // Sum of costUSD fields
   preview: string,      // First ~200 chars of recent messages
-  isAgent: boolean      // true if filename starts with "agent-"
+  isAgent: boolean,     // true if filename starts with "agent-"
+  source: string,       // 'claudecode' | 'codex' | 'gcopilot'
+  sourceHome?: string   // e.g. '.claudew-plan' — present only when the session
+                        // came from a non-canonical agent home (multi-home discovery)
 }
 ```
+
+## Project Object Shape
+
+```javascript
+{
+  id: string,
+  name: string,
+  path: string,
+  sources: string[],            // e.g. ['claudecode', 'codex']
+  sessionCount: {
+    claudecode?: number,        // summed across all .claude* homes
+    codex?: number,             // summed across all .codex* homes
+    gcopilot?: number           // summed across all .copilot* homes
+  },
+  sourceHomes?: {               // non-canonical home names per source
+    claudecode?: string[],      // e.g. ['.claudew', '.claudew-plan']
+    codex?: string[],
+    gcopilot?: string[]
+  },
+  lastUpdated?: string          // ISO 8601 timestamp, latest across all sources
+}
+```
+
+## Agent Home Discovery
+
+Each agent kind has a canonical home (`.claude`, `.codex`, `.copilot`) and may
+have additional homes matching `.<kindPrefix>*` under `$HOME`. The viewer
+auto-discovers them via `server/discovery/agentHomeDiscovery.js` and dedupes by
+`fs.realpath` of the kind's session subdirectory (`projects/`, `sessions/`,
+`session-state/`). Env overrides (`CLAUDE_PROJECTS_PATH`, `CODEX_SESSIONS_PATH`,
+`COPILOT_SESSION_PATH`) short-circuit discovery to a single root.
 
 ## Common Patterns
 
