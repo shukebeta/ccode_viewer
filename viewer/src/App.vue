@@ -79,6 +79,7 @@ import SearchBox from './components/SearchBox.vue'
 import SearchResults from './components/SearchResults.vue'
 import TwoColumnViewer from './components/TwoColumnViewer.vue'
 import { AUTO_SELECT_FIRST_USER_ID } from './constants'
+import { readHash, writeHash } from './lib/urlHash.js'
 
 const LIVE_MODE_STORAGE_KEY = 'ccode_viewer:liveModeEnabled'
 
@@ -94,9 +95,12 @@ function readLiveModePreference() {
 export default {
   components: { ProjectSelector, Sessions, SearchBox, SearchResults, TwoColumnViewer },
   data() {
+    const pendingHashRestore = (typeof window !== 'undefined') ? readHash() : null
     return {
       isTauri: typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__,
-      project: null,
+      project: pendingHashRestore
+        ? { id: pendingHashRestore.project, name: pendingHashRestore.project }
+        : null,
       sessionFile: null,
       selectedSession: null,
       // Search state
@@ -104,9 +108,10 @@ export default {
       searchResults: [],
       searchLoading: false,
       highlightUserId: null,
-      sessionSource: null,
+      sessionSource: pendingHashRestore ? pendingHashRestore.source : null,
       hasResolvedInitialProjectSelection: false,
-      pendingInitialSessionSelection: false,
+      pendingInitialSessionSelection: !pendingHashRestore,
+      pendingHashRestore,
       isCompactViewport: false,
       mobileShowConversation: false,
       liveModeEnabled: readLiveModePreference()
@@ -167,11 +172,38 @@ export default {
 
       this.hasResolvedInitialProjectSelection = true
 
+      if (this.pendingHashRestore) {
+        const real = Array.isArray(projects)
+          ? projects.find(p => p.id === this.pendingHashRestore.project)
+          : null
+        if (real) {
+          // Merge into the same object reference so Sessions.vue's project
+          // watcher does not re-fire and trigger a duplicate /api/sessions fetch.
+          Object.assign(this.project, real)
+          return
+        }
+        // Stale project id — fall back to auto-select-first.
+        this.pendingHashRestore = null
+        this.sessionSource = null
+        writeHash({})
+        this.pendingInitialSessionSelection = true
+        if (Array.isArray(projects) && projects.length > 0) {
+          this.onSelectProject(projects[0], { autoInitial: true })
+        } else {
+          this.project = null
+        }
+        return
+      }
+
       if (!this.project && Array.isArray(projects) && projects.length > 0) {
         this.onSelectProject(projects[0], { autoInitial: true })
       }
     },
     onSelectProject(p, options = {}) {
+      // User-initiated project change aborts any pending hash restore.
+      if (!options.autoInitial && this.pendingHashRestore) {
+        this.pendingHashRestore = null
+      }
       this.project = p
       this.sessionFile = null
       this.selectedSession = null
@@ -180,7 +212,7 @@ export default {
       this.mobileShowConversation = false
       // Auto-select first session whenever project changes, unless there's an active search
       this.pendingInitialSessionSelection = true
-      
+
       // If there's an active search query, re-trigger search in new project
       if (this.searchQuery && this.searchQuery.length >= 3) {
         this.pendingInitialSessionSelection = false
@@ -188,28 +220,53 @@ export default {
       } else {
         this.clearSearch()
       }
+
+      writeHash({ project: p && p.id })
+    },
+    selectFirstSession(sessions) {
+      if (this.isCompactViewport) return
+      if (this.searchQuery || this.sessionFile || !Array.isArray(sessions) || sessions.length === 0) return
+      this.onSelectSession(sessions[0].filePath, sessions[0], { highlightFirstUser: true })
     },
     onSessionsLoaded({ projectKey, sessions }) {
-      if (!this.pendingInitialSessionSelection) return
-
       const currentProjectKey = this.project && (this.project.id || this.project.name)
       if (!currentProjectKey || projectKey !== currentProjectKey) return
 
-      this.pendingInitialSessionSelection = false
-      if (this.isCompactViewport) return
-
-      if (this.searchQuery || this.sessionFile || !Array.isArray(sessions) || sessions.length === 0) {
+      if (this.pendingHashRestore && this.pendingHashRestore.project === currentProjectKey) {
+        const target = Array.isArray(sessions)
+          ? sessions.find(s => s.id === this.pendingHashRestore.session)
+          : null
+        if (target) {
+          this.pendingHashRestore = null
+          this.onSelectSession(target.filePath, target, { highlightFirstUser: false })
+          return
+        }
+        // Stale session id — strip from URL and fall back.
+        this.pendingHashRestore = null
+        writeHash({ project: currentProjectKey })
+        this.selectFirstSession(sessions)
         return
       }
 
-      this.onSelectSession(sessions[0].filePath, sessions[0], { highlightFirstUser: true })
+      if (!this.pendingInitialSessionSelection) return
+      this.pendingInitialSessionSelection = false
+      this.selectFirstSession(sessions)
     },
     onSelectSession(file, sessionObj, options = {}) {
+      // User-initiated session change aborts any pending hash restore.
+      if (this.pendingHashRestore && sessionObj?.id !== this.pendingHashRestore.session) {
+        this.pendingHashRestore = null
+      }
       this.sessionFile = file
       this.selectedSession = sessionObj || null
       this.sessionSource = sessionObj?.source || null
       this.highlightUserId = options.highlightFirstUser ? AUTO_SELECT_FIRST_USER_ID : null
       if (this.isCompactViewport) this.mobileShowConversation = true
+      writeHash({
+        project: this.project?.id,
+        session: sessionObj?.id,
+        source: this.sessionSource
+      })
     },
     async onSearch(query) {
       this.searchQuery = query
@@ -234,7 +291,9 @@ export default {
         this.searchLoading = false
       }
     },
-    onSelectSearchResult({ sessionFile, source, userId }) {
+    onSelectSearchResult({ sessionFile, source, userId, sessionId }) {
+      // User-initiated selection aborts any pending hash restore.
+      if (this.pendingHashRestore) this.pendingHashRestore = null
       // Load the session and highlight the user message
       this.pendingInitialSessionSelection = false
       this.highlightUserId = userId
@@ -242,6 +301,11 @@ export default {
       this.selectedSession = null
       this.sessionSource = source || null
       if (this.isCompactViewport) this.mobileShowConversation = true
+      writeHash({
+        project: this.project?.id,
+        session: sessionId,
+        source: source || null
+      })
     },
     showSessionList() {
       this.mobileShowConversation = false
