@@ -206,10 +206,13 @@ export default {
     }
   },
   methods: {
-    // silent: true means a background refresh (SSE-triggered). It skips the
-    // `loading` flag and the on-error blank-out so the rendered list never
-    // flickers to "Loading..." or empties between fetches. Foreground loads
-    // (initial mount, project switch) keep the placeholder behavior.
+    // silent: true means a background refresh (SSE-triggered). It skips
+    // setting `loading = true` at the start and the on-error blank-out so
+    // the rendered list never flickers to "Loading..." or empties between
+    // fetches. `loading` is still cleared on completion — otherwise a silent
+    // refresh that supersedes an in-flight foreground load (e.g. SSE 'open'
+    // firing right after mount) would leave the placeholder stuck.
+    // Foreground loads (initial mount, project switch) keep the placeholder.
     async load({ silent = false } = {}) {
       if (!this.project) return
 
@@ -238,7 +241,7 @@ export default {
         }
       } finally {
         if (requestId === this.loadRequestId) {
-          if (!silent) this.loading = false
+          this.loading = false
           if (this.loadAbortController === controller) {
             this.loadAbortController = null
           }
