@@ -20,8 +20,9 @@
     "package:tauri": "pnpm install && pnpm run desktop:build",
     "package:exe": "node scripts/package-exe.mjs",
     "install:all": "pnpm install --frozen-lockfile && pnpm --dir server install --frozen-lockfile && pnpm --dir viewer install --frozen-lockfile",
-    "test": "pnpm --dir server test",
+    "test": "pnpm --dir server exec vitest run && pnpm --dir viewer test",
     "test:server": "pnpm --dir server exec vitest run",
+    "test:viewer": "pnpm --dir viewer test",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
   },

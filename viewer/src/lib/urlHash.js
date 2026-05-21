@@ -1,9 +1,7 @@
 // URL hash helpers for restoring project/session selection across reloads.
 //
-// Invariant: writeHash uses history.replaceState, which does NOT fire the
-// `hashchange` event. The optional hashchange listener (see App.vue) relies on
-// this — switching to pushState would create a feedback loop where our own
-// writes re-enter the restore logic.
+// Invariant: writeHash uses history.replaceState — switching to pushState
+// would make our own writes fire `hashchange` and re-enter the restore logic.
 
 function getWindow(env) {
   return env || (typeof window !== 'undefined' ? window : null)
@@ -49,8 +47,7 @@ export function writeHash(state, env) {
   if (state && state.source) parts.push('source=' + encodeURIComponent(state.source))
 
   if (parts.length === 0) {
-    const base = (win.location.pathname || '') + (win.location.search || '')
-    win.history.replaceState(null, '', base || ' ')
+    win.history.replaceState(null, '', (win.location.pathname || '') + (win.location.search || ''))
     return
   }
 

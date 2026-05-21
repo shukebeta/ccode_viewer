@@ -110,8 +110,15 @@ export default {
       highlightUserId: null,
       sessionSource: pendingHashRestore ? pendingHashRestore.source : null,
       hasResolvedInitialProjectSelection: false,
+      // Suppress the auto-select-first path while a hash restore is in flight;
+      // the restore handlers take over selection. Defaults to true (matches old
+      // behavior) when no hash is present.
       pendingInitialSessionSelection: !pendingHashRestore,
       pendingHashRestore,
+      // Tracks the placeholder project id (from hash) independently of
+      // pendingHashRestore so the projects-loaded upgrade still runs even when
+      // /api/sessions returns before /api/projects.
+      placeholderProjectId: pendingHashRestore ? pendingHashRestore.project : null,
       isCompactViewport: false,
       mobileShowConversation: false,
       liveModeEnabled: readLiveModePreference()
@@ -172,25 +179,32 @@ export default {
 
       this.hasResolvedInitialProjectSelection = true
 
-      if (this.pendingHashRestore) {
+      if (this.placeholderProjectId) {
         const real = Array.isArray(projects)
-          ? projects.find(p => p.id === this.pendingHashRestore.project)
+          ? projects.find(p => p.id === this.placeholderProjectId)
           : null
         if (real) {
           // Merge into the same object reference so Sessions.vue's project
           // watcher does not re-fire and trigger a duplicate /api/sessions fetch.
           Object.assign(this.project, real)
+          this.placeholderProjectId = null
           return
         }
-        // Stale project id — fall back to auto-select-first.
-        this.pendingHashRestore = null
-        this.sessionSource = null
-        writeHash({})
-        this.pendingInitialSessionSelection = true
-        if (Array.isArray(projects) && projects.length > 0) {
-          this.onSelectProject(projects[0], { autoInitial: true })
-        } else {
-          this.project = null
+        // Placeholder project doesn't exist in /api/projects. If the session
+        // restore is still pending, fall back to auto-select-first. If the
+        // session was already restored (sessions-loaded landed first), leave
+        // the user on it; only the project metadata stays stale.
+        this.placeholderProjectId = null
+        if (this.pendingHashRestore) {
+          this.pendingHashRestore = null
+          this.sessionSource = null
+          writeHash({})
+          this.pendingInitialSessionSelection = true
+          if (Array.isArray(projects) && projects.length > 0) {
+            this.onSelectProject(projects[0], { autoInitial: true })
+          } else {
+            this.project = null
+          }
         }
         return
       }
@@ -204,6 +218,7 @@ export default {
       if (!options.autoInitial && this.pendingHashRestore) {
         this.pendingHashRestore = null
       }
+      if (!options.autoInitial) this.placeholderProjectId = null
       this.project = p
       this.sessionFile = null
       this.selectedSession = null
@@ -224,9 +239,10 @@ export default {
       writeHash({ project: p && p.id })
     },
     selectFirstSession(sessions) {
-      if (this.isCompactViewport) return
-      if (this.searchQuery || this.sessionFile || !Array.isArray(sessions) || sessions.length === 0) return
+      if (this.isCompactViewport) return false
+      if (this.searchQuery || this.sessionFile || !Array.isArray(sessions) || sessions.length === 0) return false
       this.onSelectSession(sessions[0].filePath, sessions[0], { highlightFirstUser: true })
+      return true
     },
     onSessionsLoaded({ projectKey, sessions }) {
       const currentProjectKey = this.project && (this.project.id || this.project.name)
@@ -241,10 +257,13 @@ export default {
           this.onSelectSession(target.filePath, target, { highlightFirstUser: false })
           return
         }
-        // Stale session id — strip from URL and fall back.
+        // Stale session id — fall back. selectFirstSession will writeHash
+        // with the picked session; only strip the dead session ourselves if
+        // no fallback selection lands (empty list or compact viewport).
         this.pendingHashRestore = null
-        writeHash({ project: currentProjectKey })
-        this.selectFirstSession(sessions)
+        if (!this.selectFirstSession(sessions)) {
+          writeHash({ project: currentProjectKey })
+        }
         return
       }
 
