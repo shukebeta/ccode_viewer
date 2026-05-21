@@ -183,9 +183,9 @@ export default {
 
     this._unsubscribeSessions = onSessionsChanged(({ projectId }) => {
       if (!this.project) return
-      if (this.project.id === projectId || this.project.name === projectId) this.load()
+      if (this.project.id === projectId || this.project.name === projectId) this.load({ silent: true })
     })
-    this._unsubscribeOpen = onOpen(() => { if (this.project) this.load() })
+    this._unsubscribeOpen = onOpen(() => { if (this.project) this.load({ silent: true }) })
   },
   beforeUnmount() {
     if (this.loadAbortController) {
@@ -206,7 +206,11 @@ export default {
     }
   },
   methods: {
-    async load() {
+    // silent: true means a background refresh (SSE-triggered). It skips the
+    // `loading` flag and the on-error blank-out so the rendered list never
+    // flickers to "Loading..." or empties between fetches. Foreground loads
+    // (initial mount, project switch) keep the placeholder behavior.
+    async load({ silent = false } = {}) {
       if (!this.project) return
 
       const key = this.project.id || this.project.name
@@ -216,7 +220,7 @@ export default {
       }
       const controller = new AbortController()
       this.loadAbortController = controller
-      this.loading = true
+      if (!silent) this.loading = true
       let sessions = []
       try {
         const res = await fetch('/api/sessions?project=' + encodeURIComponent(key), {
@@ -229,12 +233,12 @@ export default {
       } catch (e) {
         if (e && e.name === 'AbortError') return
         console.error(e)
-        if (requestId === this.loadRequestId) {
+        if (requestId === this.loadRequestId && !silent) {
           this.sessions = []
         }
       } finally {
         if (requestId === this.loadRequestId) {
-          this.loading = false
+          if (!silent) this.loading = false
           if (this.loadAbortController === controller) {
             this.loadAbortController = null
           }
