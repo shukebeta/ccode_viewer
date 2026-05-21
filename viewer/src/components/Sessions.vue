@@ -121,7 +121,25 @@
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             </button>
-            <button v-if="!isToday(s.lastTime || s.startTime)" class="delete-btn" @click="confirmDelete(s)" title="Delete session">×</button>
+            <button
+              v-if="!isToday(s.lastTime || s.startTime)"
+              class="delete-btn"
+              @click="confirmDelete(s)"
+              title="Delete session"
+            >×</button>
+            <button
+              v-else
+              class="delete-btn today"
+              :class="{ pressing: longPressFile === s.filePath }"
+              :title="todayTooltip"
+              :aria-label="todayTooltip"
+              @pointerdown.prevent="startTodayLongPress(s)"
+              @pointerup="cancelTodayLongPress(s)"
+              @pointerleave="cancelTodayLongPress(s)"
+              @pointercancel="cancelTodayLongPress(s)"
+              @contextmenu.prevent
+              @click="onTodayClick(s)"
+            ><span class="delete-btn-glyph">×</span></button>
           </div>
         </div>
       </li>
@@ -134,6 +152,8 @@
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { SOURCE_LABELS } from '../constants.js'
 import { onSessionsChanged, onOpen } from '../lib/listEvents.js'
+
+const TODAY_TOOLTIP = 'Only non-today sessions can be deleted. Long-press the × button for 3 seconds to force delete.'
 export default {
   props: ['project', 'currentSessionFile'],
   data() {
@@ -143,7 +163,9 @@ export default {
       loadRequestId: 0,
       loadAbortController: null,
       _unsubscribeSessions: null,
-      _unsubscribeOpen: null
+      _unsubscribeOpen: null,
+      longPressFile: null,
+      longPressFiredFor: null
     }
   },
   mounted() {
@@ -172,6 +194,10 @@ export default {
     }
     if (this._unsubscribeSessions) { this._unsubscribeSessions(); this._unsubscribeSessions = null }
     if (this._unsubscribeOpen) { this._unsubscribeOpen(); this._unsubscribeOpen = null }
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer)
+      this._longPressTimer = null
+    }
   },
   watch: {
     project: {
@@ -247,7 +273,7 @@ export default {
     },
     async confirmDelete(session) {
       const timeStr = this.formatTime(session.startTime)
-      const msg = timeStr 
+      const msg = timeStr
         ? 'Delete session from ' + timeStr + '?'
         : 'Delete this empty session?'
       try {
@@ -256,6 +282,55 @@ export default {
           cancelButtonText: 'Cancel',
           type: 'warning'
         })
+        this.deleteSession(session)
+      } catch (e) {
+        // User cancelled
+      }
+    },
+    startTodayLongPress(session) {
+      if (this._longPressTimer) {
+        clearTimeout(this._longPressTimer)
+        this._longPressTimer = null
+      }
+      this.longPressFile = session.filePath
+      this.longPressFiredFor = null
+      this._longPressTimer = setTimeout(() => {
+        this._longPressTimer = null
+        this.longPressFiredFor = session.filePath
+        this.longPressFile = null
+        this.confirmForceDelete(session)
+      }, 3000)
+    },
+    cancelTodayLongPress(session) {
+      if (this._longPressTimer) {
+        clearTimeout(this._longPressTimer)
+        this._longPressTimer = null
+      }
+      if (this.longPressFile === session.filePath) {
+        this.longPressFile = null
+      }
+    },
+    onTodayClick(session) {
+      if (this.longPressFiredFor === session.filePath) {
+        this.longPressFiredFor = null
+        return
+      }
+      ElMessage.info({
+        message: 'Long-press the × button for 3 seconds to force-delete this session.',
+        duration: 2500
+      })
+    },
+    async confirmForceDelete(session) {
+      try {
+        await ElMessageBox.confirm(
+          'This session is from today and may still be active. Force-delete anyway?',
+          'Force Delete',
+          {
+            confirmButtonText: 'Force Delete',
+            cancelButtonText: 'Cancel',
+            type: 'warning'
+          }
+        )
         this.deleteSession(session)
       } catch (e) {
         // User cancelled
@@ -314,6 +389,9 @@ export default {
     }
   },
   computed: {
+    todayTooltip() {
+      return TODAY_TOOLTIP
+    },
     displayProjectName() {
       if (!this.project || !this.project.name) return 'Sessions'
       const raw = this.project.name
