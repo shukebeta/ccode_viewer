@@ -46,7 +46,8 @@ export default {
       this.$emit('select-result', {
         sessionFile: result.sessionFile,
         source: result.source || null,
-        userId: result.userMessage.id
+        userId: result.userMessage.id,
+        sessionId: result.sessionId || null
       })
     },
     formatTime(ts) {
