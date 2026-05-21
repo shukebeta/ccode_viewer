@@ -190,12 +190,13 @@ export default {
           this.placeholderProjectId = null
           return
         }
-        // Placeholder project doesn't exist in /api/projects. If the session
-        // restore is still pending, fall back to auto-select-first. If the
-        // session was already restored (sessions-loaded landed first), leave
-        // the user on it; only the project metadata stays stale.
+        // Placeholder project doesn't exist in /api/projects. If no session
+        // has been loaded yet, fall back to auto-select-first (covers the
+        // race + stale-URL combo where sessions-loaded ran first against an
+        // empty/bogus project). If a session was already restored, leave the
+        // user on it; only the project metadata stays stale.
         this.placeholderProjectId = null
-        if (this.pendingHashRestore) {
+        if (!this.sessionFile) {
           this.pendingHashRestore = null
           this.sessionSource = null
           writeHash({})
